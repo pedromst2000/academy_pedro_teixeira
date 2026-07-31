@@ -239,12 +239,25 @@ router.get("/report", async (req, res) => {
 router.post("/create", async (req, res, next) => {
 	console.log("//// CREATE COURSE ////");
 	try {
-		const query = util.promisify(db.query).bind(db);
-		const data = req.body.data;
-		data.slug = slugify(data.name, { lower: true, strict: true });
-		const insertedRow = await query("INSERT INTO course SET ?", data);
-		res.send(insertedRow);
-	} catch (err) {
+    const query = util.promisify(db.query).bind(db);
+    const data = req.body.data;
+    data.slug = slugify(data.name, { lower: true, strict: true });
+
+    // Adiciona definições padrão ao criar um novo curso, caso não existam ( valores default )
+    if (!data.enrollment && !data.settings) {
+      data.enrollment = "free";
+
+      data.settings = JSON.stringify({
+        show_info_on_course_page: false,
+        course_access_expiration: false,
+        country_limit: false,
+        progression_type: "linear",
+      });
+    }
+
+    const insertedRow = await query("INSERT INTO course SET ?", data);
+    res.send(insertedRow);
+  } catch (err) {
 		throw err;
 	}
 });
