@@ -607,14 +607,6 @@ export default function Settings({ course }) {
             <div>
               <Form.Item name={"enrollment"} className="mb-0!">
                 <Radio.Group>
-                  <Radio value="open" className="mb-4!">
-                    <p className="font-bold">{t("Open")}</p>
-                    <p className="text-[12px]">
-                      {t(
-                        "The course is not protected. Any student can access its content without the need to be logged-in or enrolled.",
-                      )}
-                    </p>
-                  </Radio>
                   <Radio value="free" className="mb-4!">
                     <p className="font-bold">{t("Free")}</p>
                     <p className="text-[12px]">
