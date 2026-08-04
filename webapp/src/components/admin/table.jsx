@@ -97,7 +97,7 @@ const CustomTable = (props) => {
       onChange={props.onChange}
       className={props.className}
       dataSource={props.dataSource}
-      pagination={{ placement: ["none", "bottomCenter"] }}
+      pagination={props.pagination ? { ...props.pagination, position: props.pagination.position || ["bottomCenter"] } : { position: ["bottomCenter"] }}
       rowSelection={props.allowSelection ? rowSelection : null}
       scroll={{ x: 50 }}
       columns={props.columns.map((item, i) => ({
@@ -111,21 +111,26 @@ const CustomTable = (props) => {
           record.full_data
             ? item.dataIndex === "is_deleted"
               ? record.full_data[item.dataIndex] === value
-              : record.full_data[item.dataIndex]?.toLowerCase() === value.toLowerCase()
+              : record.full_data[item.dataIndex]?.toLowerCase() ===
+                value.toLowerCase()
             : item.dataIndex === "is_deleted"
-            ? record[item.dataIndex] === value
-            : record[item.dataIndex]?.toLowerCase() === value?.toLowerCase(),
+              ? record[item.dataIndex] === value
+              : record[item.dataIndex]?.toLowerCase() === value?.toLowerCase(),
         sorter:
           item.sort && (item.sortType === "text" || item.sortType === "number")
             ? (a, b) => {
-                if (item.sortType === "text") return a[item.dataIndex].localeCompare(b[item.dataIndex]);
+                if (item.sortType === "text")
+                  return a[item.dataIndex].localeCompare(b[item.dataIndex]);
                 else return a[item.dataIndex] - b[item.dataIndex];
               }
             : item.sortType === "date"
-            ? (a, b) => {
-                return new Date(b.full_data[item.dataIndex]) - new Date(a.full_data[item.dataIndex]);
-              }
-            : null,
+              ? (a, b) => {
+                  return (
+                    new Date(b.full_data[item.dataIndex]) -
+                    new Date(a.full_data[item.dataIndex])
+                  );
+                }
+              : null,
         ...getColumnSearchProps(item.search),
       }))}
     />
