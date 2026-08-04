@@ -6,22 +6,29 @@ function ChooseColumns({ form, data, handleSubmit }) {
   const [checkAll, setCheckAll] = useState(false);
 
   useEffect(() => {
-    if (data && data.length && data.length > 0) {
-      setIndeterminate(Object.keys(data[0]).length > 0 && Object.keys(data[0]).length < form.getFieldValue("columns")?.length);
-      setCheckAll(form.getFieldValue("columns")?.length === Object.keys(data[0]).length);
+    if (data && data.length && data.length > 0 && data[0]) {
+      const dataKeys = Object.keys(data[0]);
+      form.setFieldValue("columns", dataKeys);
     }
   }, [data, form]);
 
   function handleCheckAll(e) {
-    form.setFieldValue("columns", e.target.checked ? Object.keys(data[0]) : []);
-    if (e.target.checked) setIndeterminate(false);
-    setCheckAll(e.target.checked);
+    if (data && data.length > 0 && data[0]) {
+      form.setFieldValue("columns", e.target.checked ? Object.keys(data[0]) : []);
+      if (e.target.checked) setIndeterminate(false);
+      setCheckAll(e.target.checked);
+    }
   }
 
   function handleChangeValues(e, all) {
-    setIndeterminate(Object.keys(data[0]).length > 0 && Object.keys(data[0]).length < all.columns?.length ? false : true);
-    setCheckAll(all.columns?.length === Object.keys(data[0]).length);
+    if (data && data.length > 0 && data[0]) {
+      const dataKeys = Object.keys(data[0]);
+      const selectedColumns = all.columns || [];
+      setIndeterminate(dataKeys.length > 0 && selectedColumns.length > 0 && selectedColumns.length < dataKeys.length);
+      setCheckAll(selectedColumns.length === dataKeys.length);
+    }
   }
+
 
   return (
     <div className="flex flex-col justify-center items-center p-2">
@@ -33,9 +40,9 @@ function ChooseColumns({ form, data, handleSubmit }) {
         <Divider />
         <Form.Item name="columns">
           <Checkbox.Group>
-            {Object.keys(data[0]).map((item) => (
-              <Checkbox value={item}>{item}</Checkbox>
-            ))}
+            {data && data.length > 0 && data[0] ? Object.keys(data[0]).map((item) => (
+              <Checkbox value={item} key={item}>{item}</Checkbox>
+            )) : null}
           </Checkbox.Group>
         </Form.Item>
       </Form>
