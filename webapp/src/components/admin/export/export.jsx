@@ -12,6 +12,7 @@ export default function ExportTable({ open, close, data, table }) {
   const [dataToExport, setDataToExport] = useState([]);
   const [columnsToExport, setColumnsToExport] = useState([]);
   const [current, setCurrent] = useState(0);
+  const [selectedColumns, setSelectedColumns] = useState([]);
 
   const [form] = Form.useForm();
 
@@ -21,9 +22,26 @@ export default function ExportTable({ open, close, data, table }) {
     setDataToExport(data);
   }, [data]);
 
+  // Restaura as colunas selecionadas ao voltar ao passo anterior
+  useEffect(() => {
+    if (current === 0 && columnsToExport.length > 0) {
+      const columnNames = columnsToExport.map((col) => col.dataIndex);
+      form.setFieldValue("columns", columnNames);
+      setSelectedColumns(columnNames);
+    }
+  }, [current, columnsToExport, form]);
+
+  // Resetar selectedColumns quando drawer fecha
+  useEffect(() => {
+    if (!open) {
+      setSelectedColumns([]);
+    }
+  }, [open]);
+
   function handleClose() {
     close();
     setCurrent(0);
+    setSelectedColumns([]);
     form.resetFields();
   }
 
@@ -38,7 +56,11 @@ export default function ExportTable({ open, close, data, table }) {
     dataToExport.forEach((row) => {
       let rowData = columnsToExport.map((column) => {
         let value = row[column.dataIndex || column.key];
-        if (typeof value === "object" && value?.props && value.props?.children) {
+        if (
+          typeof value === "object" &&
+          value?.props &&
+          value.props?.children
+        ) {
           value = value?.props?.children;
         }
         return value;
@@ -50,8 +72,13 @@ export default function ExportTable({ open, close, data, table }) {
     const worksheet = XLSX.utils.aoa_to_sheet(exportData);
     XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
 
-    const excelBuffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
-    const file = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const excelBuffer = XLSX.write(workbook, {
+      type: "array",
+      bookType: "xlsx",
+    });
+    const file = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
 
     saveAs(file, fileName);
     close();
@@ -76,6 +103,12 @@ export default function ExportTable({ open, close, data, table }) {
     setCurrent(e);
   }
 
+  function handleFormColumnsChange(changedValues, allValues) {
+    // Atualiza o estado com as colunas selecionadas do formulário em tempo real
+    const columns = allValues.columns || [];
+    setSelectedColumns(columns);
+  }
+
   return (
     <Drawer
       key="drawer-export"
@@ -86,7 +119,11 @@ export default function ExportTable({ open, close, data, table }) {
       extra={[
         <div>
           {current === 0 && (
-            <Button type="primary" onClick={form.submit}>
+            <Button
+              type="primary"
+              onClick={form.submit}
+              disabled={selectedColumns.length === 0}
+            >
               Seguinte
             </Button>
           )}
@@ -95,7 +132,11 @@ export default function ExportTable({ open, close, data, table }) {
               <Button className="mr-2" onClick={() => setCurrent(0)}>
                 Anterior
               </Button>
-              <Button loading={isButtonLoading} type="primary" onClick={handleExport}>
+              <Button
+                loading={isButtonLoading}
+                type="primary"
+                onClick={handleExport}
+              >
                 Exportar
               </Button>
             </>
@@ -118,8 +159,21 @@ export default function ExportTable({ open, close, data, table }) {
               },
             ]}
           />
-          {current === 0 && <ChooseColumns form={form} handleSubmit={handleChooseColumns} data={dataToExport} />}
-          {current === 1 && <ExportData data={dataToExport} columns={columnsToExport} table={table} />}
+          {current === 0 && (
+            <ChooseColumns
+              form={form}
+              handleSubmit={handleChooseColumns}
+              data={dataToExport}
+              onFormChange={handleFormColumnsChange}
+            />
+          )}
+          {current === 1 && (
+            <ExportData
+              data={dataToExport}
+              columns={columnsToExport}
+              table={table}
+            />
+          )}
         </div>
       )}
     </Drawer>
