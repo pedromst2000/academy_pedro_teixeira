@@ -20,6 +20,7 @@ export default function TestReport({ data }) {
   const { user, selectedLanguage, languages } = useContext(Context);
   const [tableData, setTableData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
+  const [dataToExport, setDataToExport] = useState([]);
   const [courses, setCourses] = useState([]);
   const [activity, setActivity] = useState([]);
   const [countries, setCountries] = useState([]);
@@ -75,14 +76,11 @@ export default function TestReport({ data }) {
           percentage: item.meta_data.items.length > 0 ? `${(item.meta_data.items.filter((q) => q.is_correct).length * 100) / item.meta_data.items.length}%` : "0%",
           time: item.meta_data.time >= 60 ? `${Math.floor(item.meta_data.time / 60)} min` : `${item.meta_data.time} s`,
           approved: item.is_completed ? "yes" : "no",
+          meta_data: item.meta_data,
         };
 
-        for (const key in auxAnswers) {
-          if (!isNaN(key)) {
-            Object.assign(auxObj, auxAnswers[key]);
-          } else {
-            auxObj[key] = original[key];
-          }
+        for (let k = 0; k < auxAnswers.length; k++) {
+          Object.assign(auxObj, auxAnswers[k]);
         }
 
         aux.push(auxObj);
@@ -117,17 +115,97 @@ export default function TestReport({ data }) {
     setFilteredData(extra.currentDataSource);
   }
 
+  function openExport(data) {
+    setDataToExport(data);
+    setIsOpenExport(true);
+  }
+
   function closeExport() {
     setIsOpenExport(false);
   }
 
+
+  const expandedRowRender = (e) => {
+    const columnsExpanded = [
+      {
+        title: t("Title"),
+        dataIndex: "title",
+        key: "title",
+        width: "300px",
+      },
+      {
+        title: t("Answer"),
+        dataIndex: "answer",
+        key: "answer",
+        width: "300px",
+      },
+      {
+        title: t("Result"),
+        dataIndex: "result",
+        key: "result",
+        width: "300px",
+      },
+    ];
+
+    const dataExpanded = [];
+
+    if (e.meta_data && e.meta_data.items && e.meta_data.items.length > 0) { 
+      for (let i = 0; i < e.meta_data.items.length; i++) {
+        let question = e.meta_data.items[i];
+        dataExpanded.push({
+          key: i,
+          title: question.title,
+          answer: question.myAnswer,
+          result: question.is_correct ? t("Correct") : t("Incorrect"),
+        });
+      }
+    }
+
+    return (
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <p className="font-bold mb-2 mt-4">{t("Questions")}</p>
+          <Button
+            className="min-w-50"
+            size="large"
+            variant="solid"
+            color="blue"
+            disabled={dataExpanded.length === 0}
+            onClick={() => openExport(dataExpanded)}
+            icon={<DownloadIcon />}
+          >
+            {t("Export excel")}
+          </Button>
+        </div>
+        <Table
+          className="expanded_table"
+          columns={columnsExpanded}
+          dataSource={dataExpanded}
+          pagination={{
+            pageSize: 5, // máximo 5 por página
+            position: ["bottomCenter"],
+          }}
+        />
+      </div>
+    );
+  };
+
   return (
     <div className="p-4">
-      <ExportTable open={isOpenExport} close={closeExport} data={filteredData.length > 0 ? filteredData : tableData} table={"CoursesReport"} />
+      <ExportTable open={isOpenExport} close={closeExport} data={dataToExport} table={"CoursesReport"} />
       <Form form={form} layout="vertical" onFinish={filterData}>
         <div className="grid grid-cols-4 gap-8 mb-4 mt-4">
           <div className="flex justify-end items-end">
-            <Button className="w-full!" size="large" variant="solid" color="blue" onClick={() => setIsOpenExport(true)} icon={<DownloadIcon />}>
+            <Button 
+              className="w-full!" 
+              size="large" 
+              variant="solid" 
+              color="blue" 
+              // Quando não existe dados na tabela, o botão de exportar é desativado
+              disabled={tableData.length === 0}
+              onClick={() => openExport(filteredData.length > 0 ? filteredData : tableData)} 
+              icon={<DownloadIcon />}
+            >
               {t("Export excel")}
             </Button>
           </div>
@@ -168,18 +246,20 @@ export default function TestReport({ data }) {
       </Form>
       <div className="p-4 bg-white rounded-[5px]">
         <Table
+          rowKey="id"
           onChange={onChange}
+          expandable={{  expandedRowRender }}
           dataSource={tableData}
           pagination={{
             pageSize: 5, // máximo 5 por página
-            placement: ["bottomCenter"], // paginação ao centro
+            position: ["bottomCenter"], // paginação ao centro
           }}
           columns={[
             {
               title: t("Test"),
               dataIndex: "name",
               key: "name",
-              width: 240,
+              width: "300px",
             },
             {
               title: t("Date"),
