@@ -240,18 +240,39 @@ export default function CourseReport({ data }) {
       <div>
         <div className="flex justify-between items-center mb-4">
           <p className="font-bold mb-2 mt-4">{t("Students")}</p>
-          <Button className="min-w-50" size="large" variant="solid" color="blue" onClick={() => openExport(dataExpanded)} icon={<DownloadIcon />}>
+          <Button
+            className="min-w-50"
+            size="large"
+            variant="solid"
+            color="blue"
+            disabled={dataExpanded.length === 0}
+            onClick={() => openExport(dataExpanded)}
+            icon={<DownloadIcon />}
+          >
             {t("Export excel")}
           </Button>
         </div>
-        <Table className="expanded_table" columns={columnsExpanded} dataSource={dataExpanded} pagination={false} />
+        <Table
+          className="expanded_table"
+          columns={columnsExpanded}
+          dataSource={dataExpanded}
+          pagination={{
+            pageSize: 5, // máximo 5 por página
+            position: ["bottomCenter"],
+          }}
+        />
       </div>
     );
   };
 
   return (
     <div className="p-4">
-      <ExportTable open={isOpenExport} close={closeExport} data={dataToExport} table={"CoursesReport"} />
+      <ExportTable
+        open={isOpenExport}
+        close={closeExport}
+        data={dataToExport}
+        table={"CoursesReport"}
+      />
       <Form form={form} layout="vertical" onFinish={filterData}>
         <div className="grid grid-cols-4 gap-8 mb-4 mt-4">
           <div className="flex justify-end items-end">
@@ -260,7 +281,11 @@ export default function CourseReport({ data }) {
               size="large"
               variant="solid"
               color="blue"
-              onClick={() => openExport(filteredData.length > 0 ? filteredData : tableData)}
+              // Quando não existe dados na tabela, o botão de exportar é desativado
+              disabled={tableData.length === 0}
+              onClick={() =>
+                openExport(filteredData.length > 0 ? filteredData : tableData)
+              }
               icon={<DownloadIcon />}
             >
               {t("Export excel")}
@@ -295,7 +320,13 @@ export default function CourseReport({ data }) {
             />
           </Form.Item>
           <div className="flex justify-center items-end">
-            <Button className="w-full" size="large" onClick={form.submit} type="primary" icon={<SearchIcon />}>
+            <Button
+              className="w-full"
+              size="large"
+              onClick={form.submit}
+              type="primary"
+              icon={<SearchIcon />}
+            >
               {t("Search")}
             </Button>
           </div>
@@ -307,10 +338,11 @@ export default function CourseReport({ data }) {
           expandable={{
             expandedRowRender,
           }}
+          rowKey="id"
           dataSource={tableData}
           pagination={{
             pageSize: 5, // máximo 5 por página
-            placement: ["bottomCenter"], // paginação ao centro
+            position: ["bottomCenter"], // paginação ao centro
           }}
           columns={[
             {
