@@ -74,7 +74,7 @@ export default function CourseReport({ data }) {
 
         aux.push({
           id: course.id,
-          name: course.name,
+          course_name: course.name,
           start_date:
             course.settings.course_access_expiration && course.settings.course_access_expiration_dates.start_date
               ? dayjs(course.settings.course_access_expiration_dates.start_date).format("DD MMM, YYYY")
@@ -347,8 +347,8 @@ export default function CourseReport({ data }) {
           columns={[
             {
               title: t("Course"),
-              dataIndex: "name",
-              key: "name",
+              dataIndex: "course_name",
+              key: "course_name",
               width: "300px",
             },
             {
