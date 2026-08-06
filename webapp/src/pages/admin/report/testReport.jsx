@@ -74,13 +74,14 @@ export default function TestReport({ data }) {
         let auxObj = {
           id: item.id,
           id_course: obj.courses.filter((c) => c.id === item.id_course)[0].id,
-          course: obj.courses.filter((c) => c.id === item.id_course)[0].name,
           test_name: item.test_title,
           date: item.created_at
             ? dayjs(item.created_at).format("DD/MM/YYYY")
             : item.created_at,
           user_name: obj.users.filter((u) => u.id === item.id_user)[0].name,
           user_email: obj.users.filter((u) => u.id === item.id_user)[0].email,
+          course: obj.courses.filter((c) => c.id === item.id_course)[0].name,
+
           user_country: obj.users.filter((u) => u.id === item.id_user)[0]
             .country,
 

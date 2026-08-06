@@ -76,26 +76,41 @@ export default function CourseReport({ data }) {
           id: course.id,
           course_name: course.name,
           start_date:
-            course.settings.course_access_expiration && course.settings.course_access_expiration_dates.start_date
-              ? dayjs(course.settings.course_access_expiration_dates.start_date).format("DD MMM, YYYY")
+            course.settings.course_access_expiration &&
+            course.settings.course_access_expiration_dates.start_date
+              ? dayjs(
+                  course.settings.course_access_expiration_dates.start_date,
+                ).format("DD MMM, YYYY")
               : null,
           end_date:
-            course.settings.course_access_expiration && course.settings.course_access_expiration_dates.end_date
-              ? dayjs(course.settings.course_access_expiration_dates.end_date).format("DD MMM, YYYY")
+            course.settings.course_access_expiration &&
+            course.settings.course_access_expiration_dates.end_date
+              ? dayjs(
+                  course.settings.course_access_expiration_dates.end_date,
+                ).format("DD MMM, YYYY")
               : null,
-          lang: languages.filter((l) => l.id === course.id_lang)[0].code.toUpperCase(),
           nr_modules: modules.length,
           nr_topics: topics.length,
           nr_tests: tests.length,
           approved: approved.length,
           repproved: repproved,
+          percentage:
+            parseFloat(
+              approved.length > 0
+                ? (approved.length * 100) / students.length
+                : 0,
+            ).toFixed(2) + "%",
           students: students.length,
-          percentage: parseFloat(approved.length > 0 ? (approved.length * 100) / students.length : 0).toFixed(2) + "%",
-          country: course.settings.country_limit ? course.settings.country.join(", ") : t("All"),
+          country: course.settings.country_limit
+            ? course.settings.country.join(", ")
+            : t("All"),
+          lang: languages
+            .filter((l) => l.id === course.id_lang)[0]
+            .code.toUpperCase(),
         });
       }
     }
-    setTableData(aux);
+    setTableData(aux);    
     setFilteredData(aux);
   }
 
@@ -130,8 +145,8 @@ export default function CourseReport({ data }) {
     const columnsExpanded = [
       {
         title: "ID",
-        dataIndex: "id",
-        key: "id",
+        dataIndex: "ID",
+        key: "ID",
       },
       {
         title: t("Name"),
@@ -191,18 +206,19 @@ export default function CourseReport({ data }) {
       let studentActivity = activity.filter((a) => a.id_user === student.id);
       if (studentActivity.length === 0) {
         dataExpanded.push({
-          id: student.id,
+          ID: student.id,
           name: student.name,
           email: student.email,
+          country: null,
           start_date: null,
           end_date: null,
-          lang: languages.filter((l) => l.id === course.id_lang)[0].code.toUpperCase(),
           nr_modules: null,
           nr_topics: null,
           nr_tests: null,
           status: t("Not started"),
-          percentage: null,
-          country: student.country,
+          lang: languages
+            .filter((l) => l.id === course.id_lang)[0]
+            .code.toUpperCase(),
         });
       } else {
         let approved = studentActivity.filter((a) => a.is_completed && a.activity_type === "course").length > 0;
@@ -221,17 +237,26 @@ export default function CourseReport({ data }) {
         }
 
         dataExpanded.push({
-          id: student.id,
+          ID: student.id,
           name: student.name,
           email: student.email,
+          country: course.settings.country_limit
+            ? course.settings.country.join(", ")
+            : t("All"),
+
           start_date: dayjs(startDate).format("DD MMM, YYYY"),
           end_date: endDate ? dayjs(endDate).format("DD MMM, YYYY") : null,
-          lang: languages.filter((l) => l.id === course.id_lang)[0].code.toUpperCase(),
           nr_modules: `${studentActivity.filter((a) => a.activity_type === "module" && a.is_completed === 1).length}/${e.nr_modules}`,
           nr_topics: `${studentActivity.filter((a) => a.activity_type === "topic" && a.is_completed === 1).length}/${e.nr_topics}`,
           nr_tests: `${studentActivity.filter((a) => a.activity_type === "test" && a.is_completed === 1).length}/${e.nr_tests}`,
-          status: repproved ? t("Failed") : approved ? t("Approved") : t("In progress"),
-          country: course.settings.country_limit ? course.settings.country.join(", ") : t("All"),
+          status: repproved
+            ? t("Failed")
+            : approved
+              ? t("Approved")
+              : t("In progress"),
+          lang: languages
+            .filter((l) => l.id === course.id_lang)[0]
+            .code.toUpperCase(),
         });
       }
     }
