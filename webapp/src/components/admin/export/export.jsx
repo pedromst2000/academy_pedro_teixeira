@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 
 import ChooseColumns from "./columns";
 import ExportData from "./data";
+import { excludedColumns } from "../../../utils/exportExcludedColumns";
 
 export default function ExportTable({ open, close, data, table }) {
   const [isButtonLoading, setIsButtonLoading] = useState(false);
@@ -50,11 +51,16 @@ export default function ExportTable({ open, close, data, table }) {
     let fileName = `${dayjs().format("YYYY-MM-DD")}_${dayjs().format("HHmmss")}_${table}Export.xlsx`;
     let exportData = [];
 
-    const headers = columnsToExport.map((column) => column.title);
+    // Remove as colunas excluídas da lista de colunas a exportar
+    const filteredColumnsToExport = columnsToExport.filter(
+      (col) => !excludedColumns.includes(col.dataIndex)
+    );
+
+    const headers = filteredColumnsToExport.map((column) => column.title);
     exportData.push(headers);
 
     dataToExport.forEach((row) => {
-      let rowData = columnsToExport.map((column) => {
+      let rowData = filteredColumnsToExport.map((column) => {
         let value = row[column.dataIndex || column.key];
         if (
           typeof value === "object" &&

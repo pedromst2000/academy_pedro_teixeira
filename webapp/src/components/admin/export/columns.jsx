@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Checkbox, Divider, Form } from "antd";
+import { excludedColumns } from "../../../utils/exportExcludedColumns";
 
 function ChooseColumns({ form, data, handleSubmit, onFormChange }) {
   const [indeterminate, setIndeterminate] = useState(false);
@@ -68,11 +69,13 @@ function ChooseColumns({ form, data, handleSubmit, onFormChange }) {
         <Form.Item name="columns">
           <Checkbox.Group>
             {data && data.length > 0 && data[0]
-              ? Object.keys(data[0]).map((item) => (
-                  <Checkbox value={item} key={item}>
-                    {item}
-                  </Checkbox>
-                ))
+              ? Object.keys(data[0])
+                  .filter((key) => !excludedColumns.includes(key)) // Exlui as colunas excluídas do conjunto de colunas
+                  .map((item) => (
+                    <Checkbox value={item} key={item}>
+                      {item}
+                    </Checkbox>
+                  ))
               : null}
           </Checkbox.Group>
         </Form.Item>
