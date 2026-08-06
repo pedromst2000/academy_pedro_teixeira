@@ -209,7 +209,7 @@ export default function CourseReport({ data }) {
           ID: student.id,
           name: student.name,
           email: student.email,
-          country: null,
+          country: student.country,
           start_date: null,
           end_date: null,
           nr_modules: null,
@@ -240,10 +240,7 @@ export default function CourseReport({ data }) {
           ID: student.id,
           name: student.name,
           email: student.email,
-          country: course.settings.country_limit
-            ? course.settings.country.join(", ")
-            : t("All"),
-
+          country: student.country,
           start_date: dayjs(startDate).format("DD MMM, YYYY"),
           end_date: endDate ? dayjs(endDate).format("DD MMM, YYYY") : null,
           nr_modules: `${studentActivity.filter((a) => a.activity_type === "module" && a.is_completed === 1).length}/${e.nr_modules}`,
