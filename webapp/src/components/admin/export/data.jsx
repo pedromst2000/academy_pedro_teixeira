@@ -1,15 +1,15 @@
 import { Table } from "antd";
-import { excludedColumns } from "../../../utils/exportExcludedColumns";
+import { excludedColumns } from "../../../utils/columns";
 
 function ExportData({ data, columns }) {
 
   const filteredColumns = columns
-    .filter((col) => !excludedColumns.includes(col.dataIndex))
+    .filter((col) => !excludedColumns.includes(col.dataIndex)) // Exclui as colunas excluídas
     .map((col) => ({
       ...col,
       width: col.dataIndex.includes("question") || col.dataIndex.includes("answer") ? 300 :
         col.dataIndex.includes("course_name") || col.dataIndex.includes("course") || col.dataIndex.includes("test_name") ? 150 : col.width,
-    })); // Exclui as colunas excluídas e aplica width 300px apenas às colunas especificadas
+    })); // Aplica widths específicas conforme configuração
   return (
     <div className="flex flex-col justify-center items-center p-2">
       <p className="blue text-[20px] mt-6">Vão ser exportados:</p>

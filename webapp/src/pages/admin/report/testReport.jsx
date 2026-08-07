@@ -82,7 +82,8 @@ export default function TestReport({ data }) {
           user_email: obj.users.filter((u) => u.id === item.id_user)[0].email,
           user_country: obj.users.filter((u) => u.id === item.id_user)[0]
             .country,
-          course: obj.courses.filter((c) => c.id === item.id_course)[0].name,
+          course_name: obj.courses.filter((c) => c.id === item.id_course)[0]
+            .name,
           score: `${item.meta_data.items.filter((q) => q.is_correct).length}/${item.meta_data.items.length}`,
           percentage:
             item.meta_data.items.length > 0
@@ -94,6 +95,9 @@ export default function TestReport({ data }) {
               : `${item.meta_data.time} s`,
           approved: item.is_completed ? "yes" : "no",
           meta_data: item.meta_data, // manter a propriedade meta_data para uso posterior na renderização da tabela expandida
+          lang: languages
+            .filter((l) => l.id === obj.courses.filter((c) => c.id === item.id_course)[0].id_lang)[0]
+            .code.toUpperCase(), // Para surgir a informação do idioma no Excel
         };
 
         aux.push(auxObj);
@@ -306,8 +310,8 @@ export default function TestReport({ data }) {
             },
             {
               title: t("Course"),
-              dataIndex: "course",
-              key: "course",
+              dataIndex: "course_name",
+              key: "course_name",
             },
             {
               title: t("Score"),

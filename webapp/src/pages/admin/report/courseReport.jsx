@@ -106,7 +106,7 @@ export default function CourseReport({ data }) {
             : t("All"),
           lang: languages
             .filter((l) => l.id === course.id_lang)[0]
-            .code.toUpperCase(),
+            .code.toUpperCase(), // Para surgir a informação do idioma no Excel
         });
       }
     }
@@ -218,7 +218,8 @@ export default function CourseReport({ data }) {
           status: t("Not started"),
           lang: languages
             .filter((l) => l.id === course.id_lang)[0]
-            .code.toUpperCase(),
+            .code.toUpperCase(), // Para surgir a informação do idioma no Excel
+          course: course.name, // Para surgir a informação do curso no Excel
         });
       } else {
         let approved = studentActivity.filter((a) => a.is_completed && a.activity_type === "course").length > 0;
@@ -253,7 +254,8 @@ export default function CourseReport({ data }) {
               : t("In progress"),
           lang: languages
             .filter((l) => l.id === course.id_lang)[0]
-            .code.toUpperCase(),
+            .code.toUpperCase(), // Para surgir a informação do idioma no Excel
+          course: course.name, // Para surgir a informação do curso no Excel
         });
       }
     }

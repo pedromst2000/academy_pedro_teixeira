@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 
 import ChooseColumns from "./columns";
 import ExportData from "./data";
-import { excludedColumns } from "../../../utils/exportExcludedColumns";
+import { columnExcelWidths, excludedColumns } from "../../../utils/columns";
 
 export default function ExportTable({ open, close, data, table }) {
   const [isButtonLoading, setIsButtonLoading] = useState(false);
@@ -56,11 +56,29 @@ export default function ExportTable({ open, close, data, table }) {
       (col) => !excludedColumns.includes(col.dataIndex)
     );
 
-    const headers = filteredColumnsToExport.map((column) => column.title);
+    // Verifica se "course_name" e "course" estão presentes em simultâneo, para evitar duplicação se o curso já existir
+    const hasCourseName = filteredColumnsToExport.some(col => col.dataIndex === "course_name");
+    const hasCourse = filteredColumnsToExport.some(col => col.dataIndex === "course");
+    let finalColumnsToExport = filteredColumnsToExport;
+
+    if (hasCourseName && hasCourse) {
+      finalColumnsToExport = finalColumnsToExport.filter(col => col.dataIndex !== "course");
+    } else if (!hasCourse && !hasCourseName && dataToExport.length > 0 && "course" in dataToExport[0]) {
+      finalColumnsToExport.push({ title: "course", dataIndex: "course" });
+    }
+
+    // Adiciona lang sempre como última coluna
+    if (dataToExport.length > 0 && "lang" in dataToExport[0]) {
+      finalColumnsToExport.push({ title: "lang", dataIndex: "lang" });
+    }
+
+    const columnsForExport = finalColumnsToExport;
+
+    const headers = columnsForExport.map((column) => column.title);
     exportData.push(headers);
 
     dataToExport.forEach((row) => {
-      let rowData = filteredColumnsToExport.map((column) => {
+      let rowData = columnsForExport.map((column) => {
         let value = row[column.dataIndex || column.key];
         if (
           typeof value === "object" &&
@@ -76,6 +94,14 @@ export default function ExportTable({ open, close, data, table }) {
 
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.aoa_to_sheet(exportData);
+    
+    // Define as larguras das colunas do Excel baseado na configuração centralizada
+    const colWidths = columnsForExport.map((col) => {
+      const colConfig = columnExcelWidths.columns[col.dataIndex];
+      return colConfig || columnExcelWidths.defaultWidth;
+    });
+    worksheet["!cols"] = colWidths;
+    
     XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
 
     const excelBuffer = XLSX.write(workbook, {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Checkbox, Divider, Form } from "antd";
-import { excludedColumns } from "../../../utils/exportExcludedColumns";
+import { excludedColumns } from "../../../utils/columns";
 
 function ChooseColumns({ form, data, handleSubmit, onFormChange }) {
   const [indeterminate, setIndeterminate] = useState(false);
