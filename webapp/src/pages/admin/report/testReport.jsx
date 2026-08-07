@@ -80,11 +80,9 @@ export default function TestReport({ data }) {
             : item.created_at,
           user_name: obj.users.filter((u) => u.id === item.id_user)[0].name,
           user_email: obj.users.filter((u) => u.id === item.id_user)[0].email,
-          course: obj.courses.filter((c) => c.id === item.id_course)[0].name,
-
           user_country: obj.users.filter((u) => u.id === item.id_user)[0]
             .country,
-
+          course: obj.courses.filter((c) => c.id === item.id_course)[0].name,
           score: `${item.meta_data.items.filter((q) => q.is_correct).length}/${item.meta_data.items.length}`,
           percentage:
             item.meta_data.items.length > 0
@@ -145,9 +143,9 @@ export default function TestReport({ data }) {
   const expandedRowRender = (e) => {
     const columnsExpanded = [
       {
-        title: t("Title"),
-        dataIndex: "title",
-        key: "title",
+        title: t("Question"),
+        dataIndex: "question",
+        key: "question",
         width: "300px",
       },
       {
@@ -168,12 +166,12 @@ export default function TestReport({ data }) {
 
     if (e.meta_data && e.meta_data.items && e.meta_data.items.length > 0) {
       for (let i = 0; i < e.meta_data.items.length; i++) {
-        let question = e.meta_data.items[i];
+        let _question_ = e.meta_data.items[i];
         dataExpanded.push({
           key: i,
-          title: question.title,
-          answer: question.myAnswer,
-          result: question.is_correct ? t("Correct") : t("Incorrect"),
+          question: _question_.title,
+          answer: _question_.myAnswer,
+          result: _question_.is_correct ? t("Correct") : t("Incorrect"),
         });
       }
     }
