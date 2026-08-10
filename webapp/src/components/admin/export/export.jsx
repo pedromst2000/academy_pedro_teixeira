@@ -23,27 +23,27 @@ export default function ExportTable({ open, close, data, table }) {
     setDataToExport(data);
   }, [data]);
 
-  // Restaura as colunas selecionadas ao voltar ao passo anterior
+  // Restaura as colunas selecionadas ao voltar ao passo anterior (apenas quando é clicado "Anterior")
   useEffect(() => {
-    if (current === 0 && columnsToExport.length > 0) {
+    if (current === 0 && columnsToExport.length > 0 && open) {
       const columnNames = columnsToExport.map((col) => col.dataIndex);
       form.setFieldValue("columns", columnNames);
       setSelectedColumns(columnNames);
     }
-  }, [current, columnsToExport, form]);
+  }, [current, columnsToExport, form, open]);
 
-  // Resetar selectedColumns quando drawer fecha
+  // Resetar completamente quando drawer fecha
   useEffect(() => {
     if (!open) {
+      form.resetFields();
       setSelectedColumns([]);
+      setColumnsToExport([]);
+      setCurrent(0);
     }
-  }, [open]);
+  }, [open, form]);
 
   function handleClose() {
-    close();
-    setCurrent(0);
-    setSelectedColumns([]);
-    form.resetFields();
+    close(); 
   }
 
   function handleExport() {
@@ -53,17 +53,28 @@ export default function ExportTable({ open, close, data, table }) {
 
     // Remove as colunas excluídas da lista de colunas a exportar
     const filteredColumnsToExport = columnsToExport.filter(
-      (col) => !excludedColumns.includes(col.dataIndex)
+      (col) => !excludedColumns.includes(col.dataIndex),
     );
 
     // Verifica se "course_name" e "course" estão presentes em simultâneo, para evitar duplicação se o curso já existir
-    const hasCourseName = filteredColumnsToExport.some(col => col.dataIndex === "course_name");
-    const hasCourse = filteredColumnsToExport.some(col => col.dataIndex === "course");
+    const hasCourseName = filteredColumnsToExport.some(
+      (col) => col.dataIndex === "course_name",
+    );
+    const hasCourse = filteredColumnsToExport.some(
+      (col) => col.dataIndex === "course",
+    );
     let finalColumnsToExport = filteredColumnsToExport;
 
     if (hasCourseName && hasCourse) {
-      finalColumnsToExport = finalColumnsToExport.filter(col => col.dataIndex !== "course");
-    } else if (!hasCourse && !hasCourseName && dataToExport.length > 0 && "course" in dataToExport[0]) {
+      finalColumnsToExport = finalColumnsToExport.filter(
+        (col) => col.dataIndex !== "course",
+      );
+    } else if (
+      !hasCourse &&
+      !hasCourseName &&
+      dataToExport.length > 0 &&
+      "course" in dataToExport[0]
+    ) {
       finalColumnsToExport.push({ title: "course", dataIndex: "course" });
     }
 
@@ -94,14 +105,14 @@ export default function ExportTable({ open, close, data, table }) {
 
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.aoa_to_sheet(exportData);
-    
+
     // Define as larguras das colunas do Excel baseado na configuração centralizada
     const colWidths = columnsForExport.map((col) => {
       const colConfig = columnExcelWidths.columns[col.dataIndex];
       return colConfig || columnExcelWidths.defaultWidth;
     });
     worksheet["!cols"] = colWidths;
-    
+
     XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
 
     const excelBuffer = XLSX.write(workbook, {
