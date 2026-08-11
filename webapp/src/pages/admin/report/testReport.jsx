@@ -231,7 +231,7 @@ export default function TestReport({ data }) {
     setIsOpenExport(false);
   }
 
-  const expandedRowRender = (e) => {
+  const expandedAttemptRowRender = (e) => {
     const columnsExpanded = [
       {
         title: t("Nº"),
@@ -318,6 +318,7 @@ export default function TestReport({ data }) {
           )[0]
           .code.toUpperCase(),
         course: data.courses.filter((c) => c.id === attempt.id_course)[0].name,
+        meta_data: attempt.meta_data, // Armazena meta_data para acesso no expandedQuestionRowRender
       });
     }
 
@@ -325,6 +326,75 @@ export default function TestReport({ data }) {
       <div>
         <div className="flex justify-between items-center mb-4">
           <p className="font-bold mb-2 mt-4">{t("Attempts")}</p>
+          <Button
+            className="min-w-50"
+            size="large"
+            variant="solid"
+            color="blue"
+            disabled={dataExpanded.length === 0}
+            onClick={() => openExport(dataExpanded)}
+            icon={<DownloadIcon />}
+          >
+            {t("Export excel")}
+          </Button>
+        </div>
+        <Table
+          className="expanded_table"
+          columns={columnsExpanded}
+          dataSource={dataExpanded}
+          expandable={{ 
+            expandedRowRender: expandedQuestionRowRender,
+            rowExpandable: (record) => record.meta_data && record.meta_data.items && record.meta_data.items.length > 0
+          }}
+          pagination={{
+            pageSize: 5,
+            position: ["bottomCenter"],
+          }}
+        />
+      </div>
+    );
+  };
+
+  const expandedQuestionRowRender = (e) => {
+    const columnsExpanded = [
+      {
+        title: t("Question"),
+        dataIndex: "question",
+        key: "question",
+        width: 200,
+      },
+      {
+        title: t("Answer"),
+        dataIndex: "answer",
+        key: "answer",
+        width: 200,
+      },
+      {
+        title: t("Result"),
+        dataIndex: "result",
+        key: "result",
+        width: 100,
+      },
+    ];
+
+    const dataExpanded = [];
+    // safeguard para garantir que meta_data e items existem antes de tentar acessá-los
+    if (e.meta_data && e.meta_data.items && e.meta_data.items.length > 0) {
+      for (let i = 0; i < e.meta_data.items.length; i++) {
+        let question = e.meta_data.items[i];
+        dataExpanded.push({
+          key: i,
+          question: question.title,
+          answer: question.myAnswer,
+          result: question.is_correct ? t("Correct") : t("Incorrect"),
+        });
+      }
+    }
+
+    return (
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <p className="font-bold mb-2 mt-4">{t("Questions")}</p>
           <Button
             className="min-w-50"
             size="large"
@@ -421,7 +491,7 @@ export default function TestReport({ data }) {
         <Table
           rowKey="id"
           onChange={onChange}
-          expandable={{ expandedRowRender }}
+          expandable={{ expandedRowRender: expandedAttemptRowRender, rowExpandable: (record) => record.tries > 0 }}
           dataSource={tableData}
           pagination={{
             pageSize: 5, // máximo 5 por página
