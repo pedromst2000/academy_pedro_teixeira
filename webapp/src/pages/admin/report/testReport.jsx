@@ -16,6 +16,8 @@ import ExportTable from "../../../components/admin/export/export";
 import DownloadIcon from "../../../assets/Backoffice/download.svg?react";
 import SearchIcon from "../../../assets/Backoffice/search.svg?react";
 
+
+
 export default function TestReport({ data }) {
   const { user, selectedLanguage, languages } = useContext(Context);
   const [tableData, setTableData] = useState([]);
@@ -46,13 +48,38 @@ export default function TestReport({ data }) {
     );
   }, [selectedLanguage]);
 
+
+  function formatAvgTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+
+    if (hours > 0) {
+      // Para horas, arredonda os minutos e descarta os segundos
+      const remainingSeconds = seconds % 3600;
+      const minutes = Math.round(remainingSeconds / 60);
+      return `${hours} h ${minutes} min`;
+    } else {
+      const minutes = Math.floor(seconds / 60);
+      if (minutes > 0) {
+        // Para minutos, mostra minutos e segundos
+        const secs = seconds % 60;
+        return `${minutes} min ${secs} s`;
+      } else {
+        // Para segundos, mostra apenas os segundos
+        return `${seconds} s`;
+      }
+    }
+  }
+
   function prepareData(obj) {
-    console.log(obj);
     let aux = [];
     if (obj.users && obj.activity && obj.activity.length > 0) {
       let testsActivity = obj.activity.filter(
         (a) => a.activity_type === "test",
       );
+
+      // Agrupa as atividades por utilizador e teste, para calcular médias e outras métricas
+      const groupedByUserTest = {};
+
       for (let i = 0; i < testsActivity.length; i++) {
         let item = testsActivity[i];
 
@@ -62,7 +89,10 @@ export default function TestReport({ data }) {
             : item.meta_data;
 
         let test = obj.tests.filter((t) => t.id === item.id_course_test)[0];
-        let testQuestions = test.question && typeof test.question === "string" ? JSON.parse(test.question) : test.question;
+        let testQuestions =
+          test.question && typeof test.question === "string"
+            ? JSON.parse(test.question)
+            : test.question;
         const titlesOrder = testQuestions.map((item) => item.title);
 
         let resTestOrdered = item.meta_data.items.sort(function (a, b) {
@@ -71,36 +101,93 @@ export default function TestReport({ data }) {
 
         item.meta_data.items = resTestOrdered;
 
-        let auxObj = {
-          id: item.id,
-          id_course: obj.courses.filter((c) => c.id === item.id_course)[0].id,
-          test_name: item.test_title,
-          date: item.created_at
-            ? dayjs(item.created_at).format("DD/MM/YYYY")
-            : item.created_at,
-          user_name: obj.users.filter((u) => u.id === item.id_user)[0].name,
-          user_email: obj.users.filter((u) => u.id === item.id_user)[0].email,
-          user_country: obj.users.filter((u) => u.id === item.id_user)[0]
-            .country,
-          course_name: obj.courses.filter((c) => c.id === item.id_course)[0]
-            .name,
-          score: `${item.meta_data.items.filter((q) => q.is_correct).length}/${item.meta_data.items.length}`,
-          percentage:
-            item.meta_data.items.length > 0
-              ? `${(item.meta_data.items.filter((q) => q.is_correct).length * 100) / item.meta_data.items.length}%`
-              : "0%",
-          time:
-            item.meta_data.time >= 60
-              ? `${Math.floor(item.meta_data.time / 60)} min`
-              : `${item.meta_data.time} s`,
-          approved: item.is_completed ? "yes" : "no",
-          meta_data: item.meta_data, // manter a propriedade meta_data para uso posterior na renderização da tabela expandida
-          lang: languages
-            .filter((l) => l.id === obj.courses.filter((c) => c.id === item.id_course)[0].id_lang)[0]
-            .code.toUpperCase(), // Para surgir a informação do idioma no Excel
-        };
+        const groupKey = `${item.id_user}_${item.id_course_test}`;
 
-        aux.push(auxObj);
+        // Inicializa o array para cada grupo se ainda não existir
+        if (!groupedByUserTest[groupKey]) {
+          groupedByUserTest[groupKey] = [];
+        }
+
+        // Armazena cada tentativa no grupo correspondente
+        groupedByUserTest[groupKey].push(item);
+      }
+
+      for (const groupKey in groupedByUserTest) {
+        // Itera sobre cada grupo de utilizador-teste
+        const activityAttempts = groupedByUserTest[groupKey];
+        if (activityAttempts.length === 0) continue;
+
+        const attemptSample = activityAttempts[0]; // Pega a primeira tentativa como amostra para obter informações do teste e do utilizador
+        const test = obj.tests.filter(
+          (t) => t.id === attemptSample.id_course_test,
+        )[0];
+
+        const testSettings =
+          test.settings && typeof test.settings === "string"
+            ? JSON.parse(test.settings)
+            : test.settings;
+
+        const start_date = testSettings?.start_date
+          ? dayjs(testSettings.start_date).format("DD MMM, YYYY")
+          : null;
+
+        const end_date = testSettings?.end_date
+          ? dayjs(testSettings.end_date).format("DD MMM, YYYY")
+          : null;
+
+        // Calcula a pontuação média, percentagem média e tempo médio para cada grupo de tentativas
+        let totalScore = 0;
+        let totalPercentage = 0;
+        let totalTimeInSeconds = 0;
+        let attemptCount = activityAttempts.length;
+
+        for (let attempt of activityAttempts) {
+          const correctCount = attempt.meta_data.items.filter(
+            (q) => q.is_correct,
+          ).length;
+          const totalItems = attempt.meta_data.items.length;
+          const percentage =
+            totalItems > 0 ? (correctCount * 100) / totalItems : 0;
+
+          totalScore += correctCount;
+          totalPercentage += percentage;
+          totalTimeInSeconds += attempt.meta_data.time;
+        }
+
+        const avgScore = (totalScore / attemptCount).toFixed(2);
+        const avgPercentage = (totalPercentage / attemptCount).toFixed(2);
+        const avgTimeInSeconds = Math.round(totalTimeInSeconds / attemptCount);
+
+        const avgTime = formatAvgTime(avgTimeInSeconds);
+
+        aux.push({
+          id: `${attemptSample.id_user}_${attemptSample.id_course_test}`, // Chave única para cada combinação de utilizador-teste
+          test_name: attemptSample.test_title,
+          start_date: start_date,
+          end_date: end_date,
+          user_name: obj.users.filter((u) => u.id === attemptSample.id_user)[0]
+            .name,
+          user_email: obj.users.filter((u) => u.id === attemptSample.id_user)[0]
+            .email,
+          course_name: obj.courses.filter(
+            (c) => c.id === attemptSample.id_course,
+          )[0].name,
+          tries: attemptCount,
+          avg_score: avgScore + "/" + attemptSample.meta_data.items.length,
+          avg_percentage: avgPercentage + "%",
+          avg_time: avgTime,
+          lang: languages
+            .filter(
+              (l) =>
+                l.id ===
+                obj.courses.filter((c) => c.id === attemptSample.id_course)[0]
+                  .id_lang,
+            )[0]
+            .code.toUpperCase(),
+          id_course_test: attemptSample.id_course_test,
+          id_user: attemptSample.id_user,
+          id_course: attemptSample.id_course,
+        });
       }
     }
     setTableData(aux);
@@ -147,43 +234,97 @@ export default function TestReport({ data }) {
   const expandedRowRender = (e) => {
     const columnsExpanded = [
       {
-        title: t("Question"),
-        dataIndex: "question",
-        key: "question",
-        width: "300px",
+        title: t("Nº"),
+        dataIndex: "attempt_number",
+        key: "attempt_number",
       },
       {
-        title: t("Answer"),
-        dataIndex: "answer",
-        key: "answer",
-        width: "300px",
+        title: t("Date"),
+        dataIndex: "date",
+        key: "date",
       },
       {
-        title: t("Result"),
-        dataIndex: "result",
-        key: "result",
-        width: "300px",
+        title: t("Score"),
+        dataIndex: "score",
+        key: "score",
+      },
+      {
+        title: t("Percentage"),
+        dataIndex: "percentage",
+        key: "percentage",
+      },
+      {
+        title: t("Time"),
+        dataIndex: "time",
+        key: "time",
+      },
+      {
+        title: t("Approved"),
+        dataIndex: "approved",
+        key: "approved",
       },
     ];
 
+    
+    // Filtra as atividades para o utilizador e teste específicos
+    const testsActivity = data.activity.filter(
+      (a) =>
+        a.activity_type === "test" &&
+        a.id_user === e.id_user &&
+        a.id_course_test === e.id_course_test,
+    );
+
+    //Ordena as tentativas por data
+    testsActivity.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
     const dataExpanded = [];
 
-    if (e.meta_data && e.meta_data.items && e.meta_data.items.length > 0) {
-      for (let i = 0; i < e.meta_data.items.length; i++) {
-        let _question_ = e.meta_data.items[i];
-        dataExpanded.push({
-          key: i,
-          question: _question_.title,
-          answer: _question_.myAnswer,
-          result: _question_.is_correct ? t("Correct") : t("Incorrect"),
-        });
-      }
+    for (let i = 0; i < testsActivity.length; i++) {
+      let attempt = testsActivity[i];
+
+      attempt.meta_data =
+        attempt.meta_data && typeof attempt.meta_data === "string"
+          ? JSON.parse(attempt.meta_data)
+          : attempt.meta_data;
+
+      const correctCount = attempt.meta_data.items.filter(
+        (q) => q.is_correct,
+      ).length;
+      const totalItems = attempt.meta_data.items.length;
+      const score = `${correctCount}/${totalItems}`;
+      const percentage =
+        totalItems > 0 ? `${(correctCount * 100) / totalItems}%` : "0%";
+      const time = formatAvgTime(attempt.meta_data.time);
+
+      dataExpanded.push({
+        key: i,
+        attempt_number: i + 1,
+        date: attempt.created_at
+          ? dayjs(attempt.created_at).format("DD/MM/YYYY")
+          : attempt.created_at,
+        score: score,
+        percentage: percentage,
+        time: time,
+        approved: attempt.is_completed ? "yes" : "no",
+        // Adiciona informações adicionais para exportação
+        user_name: data.users.filter((u) => u.id === attempt.id_user)[0].name,
+        user_email: data.users.filter((u) => u.id === attempt.id_user)[0].email,
+        test_name: attempt.test_title,
+        lang: languages
+          .filter(
+            (l) =>
+              l.id ===
+              data.courses.filter((c) => c.id === attempt.id_course)[0].id_lang,
+          )[0]
+          .code.toUpperCase(),
+        course: data.courses.filter((c) => c.id === attempt.id_course)[0].name,
+      });
     }
 
     return (
       <div>
         <div className="flex justify-between items-center mb-4">
-          <p className="font-bold mb-2 mt-4">{t("Questions")}</p>
+          <p className="font-bold mb-2 mt-4">{t("Attempts")}</p>
           <Button
             className="min-w-50"
             size="large"
@@ -201,7 +342,7 @@ export default function TestReport({ data }) {
           columns={columnsExpanded}
           dataSource={dataExpanded}
           pagination={{
-            pageSize: 5, // máximo 5 por página
+            pageSize: 5,
             position: ["bottomCenter"],
           }}
         />
@@ -294,9 +435,14 @@ export default function TestReport({ data }) {
               width: "300px",
             },
             {
-              title: t("Date"),
-              dataIndex: "date",
-              key: "date",
+              title: t("Date start"),
+              dataIndex: "start_date",
+              key: "start_date",
+            },
+            {
+              title: t("Date end"),
+              dataIndex: "end_date",
+              key: "end_date",
             },
             {
               title: t("Name"),
@@ -314,24 +460,24 @@ export default function TestReport({ data }) {
               key: "course_name",
             },
             {
-              title: t("Score"),
-              dataIndex: "score",
-              key: "score",
+              title: t("Attempts"),
+              dataIndex: "tries",
+              key: "tries",
             },
             {
-              title: t("Percentage"),
-              dataIndex: "percentage",
-              key: "percentage",
+              title: t("Average Score"),
+              dataIndex: "avg_score",
+              key: "avg_score",
             },
             {
-              title: t("Time"),
-              dataIndex: "time",
-              key: "time",
+              title: t("Average Percentage"),
+              dataIndex: "avg_percentage",
+              key: "avg_percentage",
             },
             {
-              title: t("Approved"),
-              dataIndex: "approved",
-              key: "approved",
+              title: t("Average Time"),
+              dataIndex: "avg_time",
+              key: "avg_time",
             },
           ]}
         />
