@@ -6,20 +6,33 @@ import * as XLSX from "xlsx";
 
 import ChooseColumns from "./columns";
 import ExportData from "./data";
-import { columnExcelWidths, excludedColumns } from "../../../utils/columns";
+import { columnExcelWidths } from "../../../utils/columns";
 
-export default function ExportTable({ open, close, data, table }) {
+export default function ExportTable({ open, close, data, table, columns = [] }) {
   const [isButtonLoading, setIsButtonLoading] = useState(false);
   const [dataToExport, setDataToExport] = useState([]);
   const [columnsToExport, setColumnsToExport] = useState([]);
   const [current, setCurrent] = useState(0);
   const [selectedColumns, setSelectedColumns] = useState([]);
+  const [columnMapping, setColumnMapping] = useState({});
 
   const [form] = Form.useForm();
 
+  // Mapeia os títulos das colunas para exibição amigável (por exemplo, "course_name" para "Nome do Curso")
+  useEffect(() => {
+    if (columns && columns.length > 0) {
+      const mapping = {};
+      columns.forEach((col) => {
+        if (col.dataIndex) {
+          mapping[col.dataIndex] = col.title;
+        }
+      });
+      setColumnMapping(mapping);
+    }
+  }, [columns]);
+
   useEffect(() => {
     console.log(data);
-    let aux = [];
     setDataToExport(data);
   }, [data]);
 
@@ -51,45 +64,61 @@ export default function ExportTable({ open, close, data, table }) {
     let fileName = `${dayjs().format("YYYY-MM-DD")}_${dayjs().format("HHmmss")}_${table}Export.xlsx`;
     let exportData = [];
 
-    // Remove as colunas excluídas da lista de colunas a exportar
-    const filteredColumnsToExport = columnsToExport.filter(
-      (col) => !excludedColumns.includes(col.dataIndex),
-    );
+    // Verifica se os dados contêm campos de tentativa (attempt_number, user_name, user_email, test_name, course, lang)
+    const hasAttemptFields = dataToExport.length > 0 && 
+      "attempt_number" in dataToExport[0] && 
+      "user_name" in dataToExport[0];
 
-    // Verifica se "course_name" e "course" estão presentes em simultâneo, para evitar duplicação se o curso já existir
-    const hasCourseName = filteredColumnsToExport.some(
-      (col) => col.dataIndex === "course_name",
-    );
-    const hasCourse = filteredColumnsToExport.some(
-      (col) => col.dataIndex === "course",
-    );
-    let finalColumnsToExport = filteredColumnsToExport;
+    let finalColumnsToExport = [...columnsToExport]; // Cria uma cópia das colunas selecionadas para exportação
 
-    if (hasCourseName && hasCourse) {
+    if (hasAttemptFields) {
+      // Para tabelas de tentativas, filtra as colunas de metadados para exportação
       finalColumnsToExport = finalColumnsToExport.filter(
-        (col) => col.dataIndex !== "course",
+        (col) => !["user_name", "user_email", "test_name", "course", "course_name", "lang"].includes(col.dataIndex),
       );
-    } else if (
-      !hasCourse &&
-      !hasCourseName &&
-      dataToExport.length > 0 &&
-      "course" in dataToExport[0]
-    ) {
-      finalColumnsToExport.push({ title: "course", dataIndex: "course" });
+
+      // Adiciona as colunas de metadados na ordem exata: user_name, user_email, test_name, course, lang
+      finalColumnsToExport.push({ title: "Name", dataIndex: "user_name" });
+      finalColumnsToExport.push({ title: "E-mail", dataIndex: "user_email" });
+      finalColumnsToExport.push({ title: "Test", dataIndex: "test_name" });
+      finalColumnsToExport.push({ title: "Course", dataIndex: "course" });
+      if (dataToExport.length > 0 && "lang" in dataToExport[0]) {
+        finalColumnsToExport.push({ title: "lang", dataIndex: "lang" });
+      }
+    } else {
+      // Para tabelas que não são de tentativas, verifica se as colunas "course_name" e "course" estão presentes e ajusta a lista final de colunas para exportação
+      const hasCourseName = columnsToExport.some(
+        (col) => col.dataIndex === "course_name",
+      );
+      const hasCourse = columnsToExport.some(
+        (col) => col.dataIndex === "course",
+      );
+
+      if (hasCourseName && hasCourse) {
+        finalColumnsToExport = finalColumnsToExport.filter(
+          (col) => col.dataIndex !== "course",
+        );
+      } else if (
+        !hasCourse &&
+        !hasCourseName &&
+        dataToExport.length > 0 &&
+        "course" in dataToExport[0]
+      ) {
+        finalColumnsToExport.push({ title: "course", dataIndex: "course" });
+      }
+
+      // Adiciona a coluna "lang" se não estiver presente e se os dados tiverem essa propriedade
+      const hasLang = finalColumnsToExport.some((col) => col.dataIndex === "lang");
+      if (!hasLang && dataToExport.length > 0 && "lang" in dataToExport[0]) {
+        finalColumnsToExport.push({ title: "lang", dataIndex: "lang" });
+      }
     }
 
-    // Adiciona lang sempre como última coluna
-    if (dataToExport.length > 0 && "lang" in dataToExport[0]) {
-      finalColumnsToExport.push({ title: "lang", dataIndex: "lang" });
-    }
-
-    const columnsForExport = finalColumnsToExport;
-
-    const headers = columnsForExport.map((column) => column.title);
+    const headers = finalColumnsToExport.map((column) => column.title);
     exportData.push(headers);
 
     dataToExport.forEach((row) => {
-      let rowData = columnsForExport.map((column) => {
+      let rowData = finalColumnsToExport.map((column) => {
         let value = row[column.dataIndex || column.key];
         if (
           typeof value === "object" &&
@@ -107,7 +136,7 @@ export default function ExportTable({ open, close, data, table }) {
     const worksheet = XLSX.utils.aoa_to_sheet(exportData);
 
     // Define as larguras das colunas do Excel baseado na configuração centralizada
-    const colWidths = columnsForExport.map((col) => {
+    const colWidths = finalColumnsToExport.map((col) => {
       const colConfig = columnExcelWidths.columns[col.dataIndex];
       return colConfig || columnExcelWidths.defaultWidth;
     });
@@ -133,7 +162,7 @@ export default function ExportTable({ open, close, data, table }) {
     let aux = [];
     for (let i = 0; i < auxColumns.length; i++) {
       aux.push({
-        title: auxColumns[i],
+        title: auxColumns[i] === "attempt_number" ? "attempt_number" : columnMapping[auxColumns[i]] || auxColumns[i], // Use friendly title from mapping, except for attempt_number
         dataIndex: auxColumns[i],
       });
     }
@@ -206,8 +235,9 @@ export default function ExportTable({ open, close, data, table }) {
             <ChooseColumns
               form={form}
               handleSubmit={handleChooseColumns}
-              data={dataToExport}
               onFormChange={handleFormColumnsChange}
+              columnMapping={columnMapping}
+              columns={columns}
             />
           )}
           {current === 1 && (
@@ -215,6 +245,7 @@ export default function ExportTable({ open, close, data, table }) {
               data={dataToExport}
               columns={columnsToExport}
               table={table}
+              columnMapping={columnMapping}
             />
           )}
         </div>

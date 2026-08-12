@@ -1,12 +1,11 @@
 import { Table } from "antd";
-import { excludedColumns } from "../../../utils/columns";
 
-function ExportData({ data, columns }) {
+function ExportData({ data, columns, columnMapping = {} }) {
 
   const filteredColumns = columns
-    .filter((col) => !excludedColumns.includes(col.dataIndex)) // Exclui as colunas excluídas
     .map((col) => ({
       ...col,
+      title: col.dataIndex === "attempt_number" ? "attempt_number" : columnMapping[col.dataIndex] || col.title, // Use mapped title or fallback to original
       width: col.dataIndex.includes("question") || col.dataIndex.includes("answer") ? 300 :
         col.dataIndex.includes("course_name") || col.dataIndex.includes("course") || col.dataIndex.includes("test_name") ? 150 : col.width,
     })); // Aplica widths específicas conforme configuração

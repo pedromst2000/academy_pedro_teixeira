@@ -1,27 +1,25 @@
 import { useEffect, useState } from "react";
 import { Checkbox, Divider, Form } from "antd";
-import { excludedColumns } from "../../../utils/columns";
 
-function ChooseColumns({ form, data, handleSubmit, onFormChange }) {
+function ChooseColumns({ form, handleSubmit, onFormChange, columnMapping = {}, columns = [] }) {
   const [indeterminate, setIndeterminate] = useState(false);
   const [checkAll, setCheckAll] = useState(false);
 
   useEffect(() => {
     // Sincronizar apenas os estados visuais (indeterminate/checkAll) com o formulário
-    if (data && data.length && data.length > 0 && data[0]) {
-      const dataKeys = Object.keys(data[0]);
+    if (columns && columns.length > 0) {
       const currentColumns = form.getFieldValue("columns") || [];
       setIndeterminate(
-        currentColumns.length > 0 && currentColumns.length < dataKeys.length,
+        currentColumns.length > 0 && currentColumns.length < columns.length,
       );
-      setCheckAll(currentColumns.length === dataKeys.length);
+      setCheckAll(currentColumns.length === columns.length);
     }
-  }, [data, form]);
+  }, [columns, form]);
 
   function handleCheckAll(e) {
-    if (data && data.length > 0 && data[0]) {
-      const dataKeys = Object.keys(data[0]);
-      const columnsToSet = e.target.checked ? dataKeys : [];
+    if (columns && columns.length > 0) {
+      const columnDataIndexes = columns.map((col) => col.dataIndex);
+      const columnsToSet = e.target.checked ? columnDataIndexes : [];
       form.setFieldValue("columns", columnsToSet);
       if (e.target.checked) setIndeterminate(false);
       setCheckAll(e.target.checked);
@@ -33,15 +31,14 @@ function ChooseColumns({ form, data, handleSubmit, onFormChange }) {
   }
 
   function handleChangeValues(e, all) {
-    if (data && data.length > 0 && data[0]) {
-      const dataKeys = Object.keys(data[0]);
+    if (columns && columns.length > 0) {
       const selectedColumns = all.columns || [];
       setIndeterminate(
-        dataKeys.length > 0 &&
+        columns.length > 0 &&
           selectedColumns.length > 0 &&
-          selectedColumns.length < dataKeys.length,
+          selectedColumns.length < columns.length,
       );
-      setCheckAll(selectedColumns.length === dataKeys.length);
+      setCheckAll(selectedColumns.length === columns.length);
       if (onFormChange) {
         onFormChange(null, all);
       }
@@ -68,14 +65,16 @@ function ChooseColumns({ form, data, handleSubmit, onFormChange }) {
         <Divider />
         <Form.Item name="columns">
           <Checkbox.Group>
-            {data && data.length > 0 && data[0]
-              ? Object.keys(data[0])
-                  .filter((key) => !excludedColumns.includes(key)) // Exlui as colunas excluídas do conjunto de colunas
-                  .map((item) => (
-                    <Checkbox value={item} key={item}>
-                      {item}
+            {columns && columns.length > 0
+              ? columns.map((col) => {
+                  const dataIndex = col.dataIndex;
+                  const displayTitle = dataIndex === "attempt_number" ? "attempt_number" : columnMapping[dataIndex] || col.title;
+                  return (
+                    <Checkbox value={dataIndex} key={dataIndex}>
+                      {displayTitle}
                     </Checkbox>
-                  ))
+                  );
+                })
               : null}
           </Checkbox.Group>
         </Form.Item>

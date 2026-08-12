@@ -21,6 +21,7 @@ export default function CourseReport({ data }) {
   const [tableData, setTableData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [dataToExport, setDataToExport] = useState([]);
+  const [columnsToExport, setColumnsToExport] = useState([]);
   const [courses, setCourses] = useState([]);
   const [countries, setCountries] = useState([]);
   const [isOpenExport, setIsOpenExport] = useState(false);
@@ -132,8 +133,9 @@ export default function CourseReport({ data }) {
     setFilteredData(extra.currentDataSource);
   }
 
-  function openExport(data) {
+  function openExport(data, columns = []) {
     setDataToExport(data);
+    setColumnsToExport(columns);
     setIsOpenExport(true);
   }
 
@@ -270,7 +272,7 @@ export default function CourseReport({ data }) {
             variant="solid"
             color="blue"
             disabled={dataExpanded.length === 0}
-            onClick={() => openExport(dataExpanded)}
+            onClick={() => openExport(dataExpanded, columnsExpanded)}
             icon={<DownloadIcon />}
           >
             {t("Export excel")}
@@ -296,6 +298,7 @@ export default function CourseReport({ data }) {
         close={closeExport}
         data={dataToExport}
         table={"CoursesReport"}
+        columns={columnsToExport}
       />
       <Form form={form} layout="vertical" onFinish={filterData}>
         <div className="grid grid-cols-4 gap-8 mb-4 mt-4">
@@ -308,7 +311,64 @@ export default function CourseReport({ data }) {
               // Quando não existe dados na tabela, o botão de exportar é desativado
               disabled={tableData.length === 0}
               onClick={() =>
-                openExport(filteredData.length > 0 ? filteredData : tableData)
+                openExport(filteredData.length > 0 ? filteredData : tableData, [
+                  {
+                    title: t("Course"),
+                    dataIndex: "course_name",
+                    key: "course_name",
+                    width: "300px",
+                  },
+                  {
+                    title: t("Date start"),
+                    dataIndex: "start_date",
+                    key: "start_date",
+                  },
+                  {
+                    title: t("Date end"),
+                    dataIndex: "end_date",
+                    key: "end_date",
+                  },
+                  {
+                    title: t("Modules"),
+                    dataIndex: "nr_modules",
+                    key: "nr_modules",
+                  },
+                  {
+                    title: t("Topics"),
+                    dataIndex: "nr_topics",
+                    key: "nr_topics",
+                  },
+                  {
+                    title: t("Tests"),
+                    dataIndex: "nr_tests",
+                    key: "nr_tests",
+                  },
+                  {
+                    title: t("Approved"),
+                    dataIndex: "approved",
+                    key: "approved",
+                  },
+                  {
+                    title: t("Repproved"),
+                    dataIndex: "repproved",
+                    key: "repproved",
+                  },
+                  {
+                    title: t("Percentage"),
+                    dataIndex: "percentage",
+                    key: "percentage",
+                  },
+                  {
+                    title: t("Students"),
+                    dataIndex: "students",
+                    key: "students",
+                  },
+                  {
+                    title: t("Country"),
+                    dataIndex: "country",
+                    key: "country",
+                  },
+                ])
               }
               icon={<DownloadIcon />}
             >

@@ -8,7 +8,7 @@
 
 export const columnExcelWidths = {
   columns: {
-    name: { wch: 250 }, // 187px
+    name: { wch: 25 }, // 187px
     course_name: { wch: 40 }, // 300px
     test_name: { wch: 40 }, // 300px
     email: { wch: 40 }, // 300px
@@ -21,11 +21,3 @@ export const columnExcelWidths = {
   },
   defaultWidth: { wch: 11 }, // Largura padrão para outras colunas
 };
-
-/**
- * @constant excludedColumns
- * @description This constant defines the columns that should be excluded from selection and export. These columns are typically internal identifiers or metadata that are not relevant for the exported data.
- * @type {Array<string>}
- */
-
-export const excludedColumns = ["id", "id_course", "meta_data", "key", "lang", "course"]; // Colunas a serem excluídas da seleção e exportação

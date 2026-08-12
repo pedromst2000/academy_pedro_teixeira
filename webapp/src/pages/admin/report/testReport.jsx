@@ -23,6 +23,7 @@ export default function TestReport({ data }) {
   const [tableData, setTableData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [dataToExport, setDataToExport] = useState([]);
+  const [columnsToExport, setColumnsToExport] = useState([]);
   const [courses, setCourses] = useState([]);
   const [activity, setActivity] = useState([]);
   const [countries, setCountries] = useState([]);
@@ -172,7 +173,7 @@ export default function TestReport({ data }) {
           course_name: obj.courses.filter(
             (c) => c.id === attemptSample.id_course,
           )[0].name,
-          tries: attemptCount,
+          attempts: attemptCount,
           avg_score: avgScore + "/" + attemptSample.meta_data.items.length,
           avg_percentage: avgPercentage + "%",
           avg_time: avgTime,
@@ -222,8 +223,9 @@ export default function TestReport({ data }) {
     setFilteredData(extra.currentDataSource);
   }
 
-  function openExport(data) {
+  function openExport(data, columns = []) {
     setDataToExport(data);
+    setColumnsToExport(columns);
     setIsOpenExport(true);
   }
 
@@ -297,7 +299,7 @@ export default function TestReport({ data }) {
       const time = formatAvgTime(attempt.meta_data.time);
 
       dataExpanded.push({
-        key: i,
+        key: i, // Chave única para cada tentativa
         attempt_number: i + 1,
         date: attempt.created_at
           ? dayjs(attempt.created_at).format("DD/MM/YYYY")
@@ -332,7 +334,7 @@ export default function TestReport({ data }) {
             variant="solid"
             color="blue"
             disabled={dataExpanded.length === 0}
-            onClick={() => openExport(dataExpanded)}
+            onClick={() => openExport(dataExpanded, columnsExpanded)}
             icon={<DownloadIcon />}
           >
             {t("Export excel")}
@@ -401,7 +403,7 @@ export default function TestReport({ data }) {
             variant="solid"
             color="blue"
             disabled={dataExpanded.length === 0}
-            onClick={() => openExport(dataExpanded)}
+            onClick={() => openExport(dataExpanded, columnsExpanded)}
             icon={<DownloadIcon />}
           >
             {t("Export excel")}
@@ -426,7 +428,8 @@ export default function TestReport({ data }) {
         open={isOpenExport}
         close={closeExport}
         data={dataToExport}
-        table={"CoursesReport"}
+        table={"TestReport"}
+        columns={columnsToExport}
       />
       <Form form={form} layout="vertical" onFinish={filterData}>
         <div className="grid grid-cols-4 gap-8 mb-4 mt-4">
@@ -439,7 +442,59 @@ export default function TestReport({ data }) {
               // Quando não existe dados na tabela, o botão de exportar é desativado
               disabled={tableData.length === 0}
               onClick={() =>
-                openExport(filteredData.length > 0 ? filteredData : tableData)
+                openExport(filteredData.length > 0 ? filteredData : tableData, [
+                  {
+                    title: t("Test"),
+                    dataIndex: "test_name",
+                    key: "test_name",
+                    width: "300px",
+                  },
+                  {
+                    title: t("Date start"),
+                    dataIndex: "start_date",
+                    key: "start_date",
+                  },
+                  {
+                    title: t("Date end"),
+                    dataIndex: "end_date",
+                    key: "end_date",
+                  },
+                  {
+                    title: t("Name"),
+                    dataIndex: "user_name",
+                    key: "user_name",
+                  },
+                  {
+                    title: t("E-mail"),
+                    dataIndex: "user_email",
+                    key: "user_email",
+                  },
+                  {
+                    title: t("Course"),
+                    dataIndex: "course_name",
+                    key: "course_name",
+                  },
+                  {
+                    title: t("Attempts"),
+                    dataIndex: "attempts",
+                    key: "attempts",
+                  },
+                  {
+                    title: t("Average Score"),
+                    dataIndex: "avg_score",
+                    key: "avg_score",
+                  },
+                  {
+                    title: t("Average Percentage"),
+                    dataIndex: "avg_percentage",
+                    key: "avg_percentage",
+                  },
+                  {
+                    title: t("Average Time"),
+                    dataIndex: "avg_time",
+                    key: "avg_time",
+                  },
+                ])
               }
               icon={<DownloadIcon />}
             >
@@ -491,7 +546,7 @@ export default function TestReport({ data }) {
         <Table
           rowKey="id"
           onChange={onChange}
-          expandable={{ expandedRowRender: expandedAttemptRowRender, rowExpandable: (record) => record.tries > 0 }}
+          expandable={{ expandedRowRender: expandedAttemptRowRender, rowExpandable: (record) => record.attempts > 0 }}
           dataSource={tableData}
           pagination={{
             pageSize: 5, // máximo 5 por página
@@ -531,8 +586,8 @@ export default function TestReport({ data }) {
             },
             {
               title: t("Attempts"),
-              dataIndex: "tries",
-              key: "tries",
+              dataIndex: "attempts",
+              key: "attempts",
             },
             {
               title: t("Average Score"),
