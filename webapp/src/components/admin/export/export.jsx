@@ -64,15 +64,20 @@ export default function ExportTable({ open, close, data, table, columns = [] }) 
     let fileName = `${dayjs().format("YYYY-MM-DD")}_${dayjs().format("HHmmss")}_${table}Export.xlsx`;
     let exportData = [];
 
-    // Verifica se os dados contêm campos de tentativa (attempt_number, user_name, user_email, test_name, course, lang)
+    // Verifica se os dados contêm campos de tentativa (attempt_number, user_name) ou questões (question, answer, user_name)
     const hasAttemptFields = dataToExport.length > 0 && 
       "attempt_number" in dataToExport[0] && 
       "user_name" in dataToExport[0];
 
+    const hasQuestionFields = dataToExport.length > 0 && 
+      "question" in dataToExport[0] && 
+      "answer" in dataToExport[0] &&
+      "user_name" in dataToExport[0];
+
     let finalColumnsToExport = [...columnsToExport]; // Cria uma cópia das colunas selecionadas para exportação
 
-    if (hasAttemptFields) {
-      // Para tabelas de tentativas, filtra as colunas de metadados para exportação
+    if (hasAttemptFields || hasQuestionFields) {
+      // Para tabelas de tentativas e questões, filtra as colunas de metadados para exportação
       finalColumnsToExport = finalColumnsToExport.filter(
         (col) => !["user_name", "user_email", "test_name", "course", "course_name", "lang"].includes(col.dataIndex),
       );

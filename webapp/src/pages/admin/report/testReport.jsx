@@ -389,6 +389,12 @@ export default function TestReport({ data }) {
           question: question.title,
           answer: question.myAnswer,
           result: question.is_correct ? t("Correct") : t("Incorrect"),
+          // Adiciona informações adicionais para exportação no Excel
+          user_name: e.user_name,
+          user_email: e.user_email,
+          course: e.course,
+          test_name: e.test_name,
+          lang: e.lang,
         });
       }
     }
