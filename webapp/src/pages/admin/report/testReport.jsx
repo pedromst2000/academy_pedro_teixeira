@@ -38,7 +38,7 @@ export default function TestReport({ data }) {
     if (data && Object.keys(data).length > 0) {
       prepareData(data);
       setCourses(data.courses);
-      setActivity(data.acitivty);
+      setActivity(data.activity);
     }
   }, [data]);
 
@@ -197,27 +197,30 @@ export default function TestReport({ data }) {
   }
 
   function filterData(values) {
-    let newData = Object.assign([], activity);
+    // Começar com as atividades de teste (ignorar outros tipos de atividade)
+    let testsActivity = activity.filter((a) => a.activity_type === "test");
 
-    if (values.test)
-      newData = newData.filter((n) => n.id_course_test === values.test);
+    // Filtrar por curso se selecionado
+    if (values.course) {
+      testsActivity = testsActivity.filter((a) => a.id_course === values.course);
+    }
+
+    // Filtrar por país se selecionado
     if (values.country && values.country.length > 0) {
-      let coursesOfCountry = courses
-        .filter((n) => {
-          const matches = n.settings.country.some((item) =>
-            values.country.includes(item),
-          );
-          return n.settings.country_limit ? matches : true;
-        })
-        .map((c) => c.id);
+      testsActivity = testsActivity.filter((a) => {
+        // Encontrar o curso associado a este teste
+        const course = data.courses.find((c) => c.id === a.id_course);
+        if (!course) return false;
 
-      newData = newData.filter((n) => {
-        const matches = coursesOfCountry.includes(n.id_course);
-        return matches;
+        // Se country_limit é true, apenas incluir se o país corresponder
+        if (course.settings.country_limit) {
+          return course.settings.country && Array.isArray(course.settings.country) && course.settings.country.some((item) => values.country.includes(item));
+        }
+        return false;
       });
     }
 
-    prepareData({ ...data, activity: newData });
+    prepareData({ ...data, activity: testsActivity });
   }
 
   function onChange(pagination, filters, sorter, extra) {

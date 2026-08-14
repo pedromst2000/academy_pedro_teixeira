@@ -159,8 +159,12 @@ export default function CourseReport({ data }) {
     if (values.course) newData = newData.filter((n) => n.id === values.course);
     if (values.country && values.country.length > 0) {
       newData = newData.filter((n) => {
-        const matches = n.settings.country.some((item) => values.country.includes(item));
-        return n.settings.country_limit ? matches : true;
+        // Se country_limit é true, apenas incluir se o país corresponder
+        if (n.settings.country_limit) {
+          return n.settings.country && Array.isArray(n.settings.country) && n.settings.country.some((item) => values.country.includes(item));
+        }
+        // Se country_limit é false (All), não incluir quando filtrar por país específico
+        return false;
       });
     }
 
