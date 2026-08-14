@@ -15,6 +15,7 @@ import dayjs from "dayjs";
 import ExportTable from "../../../components/admin/export/export";
 import DownloadIcon from "../../../assets/Backoffice/download.svg?react";
 import SearchIcon from "../../../assets/Backoffice/search.svg?react";
+import { getCourseReportColumns, getExpandedStudentColumns } from "../../../utils/columns";
 
 export default function CourseReport({ data }) {
   const { user, selectedLanguage, languages } = useContext(Context);
@@ -41,6 +42,37 @@ export default function CourseReport({ data }) {
     setCountries(JSON.parse(languages.filter((l) => l.id === selectedLanguage.id)[0].country));
   }, [selectedLanguage]);
 
+  // Função auxiliar para verificar se o aluno é aprovado
+  const isStudentApproved = (studentActivity, course, modules, topics, tests) => {
+    const courseCompleted = studentActivity.some((a) => a.activity_type === "course" && a.id_course === course.id && a.is_completed === 1);
+    const completedModules = studentActivity.filter((a) => a.activity_type === "module" && a.id_course === course.id && a.is_completed === 1).length;
+    const allModulesCompleted = completedModules === modules.length && modules.length > 0;
+    const completedTopics = studentActivity.filter((a) => a.activity_type === "topic" && a.id_course === course.id && a.is_completed === 1).length;
+    const allTopicsCompleted = completedTopics === topics.length && topics.length > 0;
+    const completedTests = studentActivity.filter((a) => a.activity_type === "test" && a.id_course === course.id && a.is_completed === 1).length;
+    const allTestsCompleted = completedTests === tests.length && tests.length > 0;
+    return courseCompleted && allModulesCompleted && allTopicsCompleted && allTestsCompleted;
+  };
+
+  // Função auxiliar para verificar se o aluno é reprovado
+  const isStudentRepproved = (studentActivity, tests) => {
+    for (let t = 0; t < tests.length; t++) {
+      let testSettings = tests[t].settings ? JSON.parse(tests[t].settings) : tests[t].settings;
+      // Apenas marca como reprovado se retries_allowed for um número válido
+      if (testSettings && testSettings.retries_allowed && testSettings.retries_allowed > 0) {
+        const testPassed = studentActivity.some((a) => a.activity_type === "test" && a.id_course_test === tests[t].id && a.is_completed === 1);
+        if (!testPassed) {
+          const failedAttempts = studentActivity.filter((a) => a.activity_type === "test" && a.id_course_test === tests[t].id && a.is_completed === 0).length;
+          // Apenas reprovado se tiver tentativas falhadas e se o número de tentativas falhadas for maior ou igual ao permitido
+          if (failedAttempts > 0 && failedAttempts >= testSettings.retries_allowed) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  };
+
   function prepareData(obj) {
     let aux = [];
     if (obj.users && obj.courses && obj.courses.length > 0) {
@@ -50,29 +82,35 @@ export default function CourseReport({ data }) {
         let modules = obj.modules.filter((t) => t.id_course === course.id);
         let topics = obj.topics.filter((t) => t.id_course === course.id);
         let tests = obj.tests.filter((t) => t.id_course === course.id);
-        let approved = obj.activity.filter((a) => a.activity_type === "course" && a.is_completed);
-        let repproved = 0;
+        
+        // Filtra os estudantes com base no país ou idioma do curso
         let students = obj.users.filter((u) => (course.settings.country_limit ? course.settings.country.includes(u.country) : u.id_lang === course.id_lang));
-
-        for (let t = 0; t < tests.length; t++) {
-          let testSettings = tests[t].settings ? JSON.parse(tests[t].settings) : tests[t].settings;
-          if (testSettings && testSettings.retries_allowed >= 0) {
-            let tries = obj.activity.filter((a) => a.activity_type === "test" && a.id_course_test === tests[t].id && a.is_completed === 0);
-
-            let triesByUser = tries.reduce((acc, attempt) => {
-              if (!acc[attempt.id_user]) acc[attempt.id_user] = 0;
-              acc[attempt.id_user]++;
-              return acc;
-            }, {});
-
-            for (let userId in triesByUser) {
-              if (triesByUser[userId] >= testSettings.retries_allowed) {
-                ++repproved;
-              }
-            }
+        
+        // Conta os estudantes aprovados: aqueles que completaram ESTE curso (id_course === course.id)
+        // Aprovado significa: curso concluído + todos os módulos concluídos + todos os tópicos concluídos + todos os testes concluídos
+        let approvedUsers = new Set();
+        for (let s = 0; s < students.length; s++) {
+          let student = students[s];
+          let studentActivity = obj.activity.filter((a) => a.id_user === student.id);
+          
+          if (isStudentApproved(studentActivity, course, modules, topics, tests)) {
+            approvedUsers.add(student.id);
           }
         }
-
+        let approved = approvedUsers.size;
+        
+        // Conta os estudantes reprovados: aqueles que falharam nos testes deste curso
+        let repprovedUsers = new Set();
+        for (let s = 0; s < students.length; s++) {
+          let student = students[s];
+          let studentActivity = obj.activity.filter((a) => a.id_user === student.id);
+          
+          if (isStudentRepproved(studentActivity, tests)) {
+            repprovedUsers.add(student.id);
+          }
+        }
+        let repproved = repprovedUsers.size;
+        
         aux.push({
           id: course.id,
           course_name: course.name,
@@ -82,23 +120,23 @@ export default function CourseReport({ data }) {
               ? dayjs(
                   course.settings.course_access_expiration_dates.start_date,
                 ).format("DD MMM, YYYY")
-              : null,
+              : "—",
           end_date:
             course.settings.course_access_expiration &&
             course.settings.course_access_expiration_dates.end_date
               ? dayjs(
                   course.settings.course_access_expiration_dates.end_date,
                 ).format("DD MMM, YYYY")
-              : null,
+              : "—",
           nr_modules: modules.length,
           nr_topics: topics.length,
           nr_tests: tests.length,
-          approved: approved.length,
+          approved: approved,
           repproved: repproved,
           percentage:
             parseFloat(
-              approved.length > 0
-                ? (approved.length * 100) / students.length
+              students.length > 0
+                ? (approved * 100) / students.length
                 : 0,
             ).toFixed(2) + "%",
           students: students.length,
@@ -144,58 +182,7 @@ export default function CourseReport({ data }) {
   }
 
   const expandedRowRender = (e) => {
-    const columnsExpanded = [
-      {
-        title: "ID",
-        dataIndex: "ID",
-        key: "ID",
-      },
-      {
-        title: t("Name"),
-        dataIndex: "name",
-        key: "name",
-      },
-      {
-        title: t("E-mail"),
-        dataIndex: "email",
-        key: "email",
-      },
-      {
-        title: t("Country"),
-        dataIndex: "country",
-        key: "country",
-      },
-      {
-        title: t("Start date"),
-        dataIndex: "start_date",
-        key: "start_date",
-      },
-      {
-        title: t("End date"),
-        dataIndex: "end_date",
-        key: "end_date",
-      },
-      {
-        title: t("Modules"),
-        dataIndex: "nr_modules",
-        key: "nr_modules",
-      },
-      {
-        title: t("Topics"),
-        dataIndex: "nr_topics",
-        key: "nr_topics",
-      },
-      {
-        title: t("Tests"),
-        dataIndex: "nr_tests",
-        key: "nr_tests",
-      },
-      {
-        title: t("Status"),
-        dataIndex: "status",
-        key: "status",
-      },
-    ];
+    const columnsExpanded = getExpandedStudentColumns(t);
 
     let course = data.courses.filter((c) => c.id === e.id)[0];
     let students = data.users.filter((u) => (course.settings.country_limit ? course.settings.country.includes(u.country) : u.id_lang === course.id_lang));
@@ -206,17 +193,21 @@ export default function CourseReport({ data }) {
     for (let i = 0; i < students.length; i++) {
       let student = students[i];
       let studentActivity = activity.filter((a) => a.id_user === student.id);
-      if (studentActivity.length === 0) {
+      
+      // Filtra apenas atividades relevantes (enroll, module, topic, test) - course activity sozinha não conta
+      const relevantActivity = studentActivity.filter((a) => ['enroll', 'module', 'topic', 'test'].includes(a.activity_type));
+      
+      if (relevantActivity.length === 0) {
         dataExpanded.push({
           ID: student.id,
           name: student.name,
           email: student.email,
           country: student.country,
-          start_date: null,
-          end_date: null,
-          nr_modules: null,
-          nr_topics: null,
-          nr_tests: null,
+          start_date: "—",
+          end_date: "—",
+          nr_modules: "—",
+          nr_topics: "—",
+          nr_tests: "—",
           status: t("Not started"),
           lang: languages
             .filter((l) => l.id === course.id_lang)[0]
@@ -224,19 +215,57 @@ export default function CourseReport({ data }) {
           course: course.name, // Para surgir a informação do curso no Excel
         });
       } else {
-        let approved = studentActivity.filter((a) => a.is_completed && a.activity_type === "course").length > 0;
+        // Verificar status de inscrição
+        const isEnrolled = studentActivity.some((a) => a.activity_type === "enroll" && a.is_completed === 1);
+        
+        // Obter data de início - preferir registro de inscrição explícito, recorrer à atividade mais antiga
         let startDate = studentActivity.filter((a) => a.activity_type === "enroll")[0]?.created_at;
-        let endDate = studentActivity.filter((a) => a.activity_type === "course" && a.is_completed === 1)[0]?.created_at;
+        if (!startDate) {
+          // Fallback: usar a data de atividade mais antiga se não houver início de inscrição (enroll)
+          startDate = studentActivity
+            .filter((a) => ['topic', 'module', 'test'].includes(a.activity_type))
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0]?.created_at;
+        }
+        
+        let endDate = null; // Será definido apenas se o aluno for aprovado
+        
+        // Obter todos os testes para este curso
         let tests = data.tests.filter((t) => t.id_course === course.id);
-        let repproved = false;
-        for (let t = 0; t < tests.length; t++) {
-          let testSettings = tests[t].settings ? JSON.parse(tests[t].settings) : tests[t].settings;
-          if (testSettings && testSettings.retries_allowed >= 0) {
-            let tries = studentActivity.filter((a) => a.activity_type === "test" && a.id_course_test === tests[t].id && a.is_completed === 0);
-            if (tries.length >= testSettings.retries_allowed) {
-              repproved = true;
-            }
-          }
+        
+        // Verificar se aprovado: deve concluir curso + todos os módulos + todos os tópicos + todos os testes
+        const tempCourse = { id: course.id };
+        const tempModules = Array(e.nr_modules).fill({});
+        const tempTopics = Array(e.nr_topics).fill({});
+        const tempTests = Array(e.nr_tests).fill({});
+        
+        let approved = isStudentApproved(studentActivity, tempCourse, tempModules, tempTopics, tempTests);
+        
+        // Obter contagens de conclusão para exibição
+        const completedModules = studentActivity.filter((a) => a.activity_type === "module" && a.id_course === course.id && a.is_completed === 1).length;
+        const completedTopics = studentActivity.filter((a) => a.activity_type === "topic" && a.id_course === course.id && a.is_completed === 1).length;
+        const completedTests = studentActivity.filter((a) => a.activity_type === "test" && a.id_course === course.id && a.is_completed === 1).length;
+        
+        // Defina endDate apenas se o aluno for aprovado (concluiu tudo)
+        if (approved) {
+          endDate = studentActivity.filter((a) => a.activity_type === "course" && a.is_completed === 1)[0]?.created_at;
+        }
+        
+        // Verifica se o estudante foi reprovado apenas se estiver matriculado (enrolled) e se tiver tentado os testes
+        let repproved = isEnrolled && isStudentRepproved(studentActivity, tests);
+        
+        // Determina o status do estudante com base nas condições: Repproved > Approved > In Progress > Not Started
+        // Prioridade: Repproved > Approved > In Progress > Not Started
+        // "In progress" requer inscrição (enroll) ou conclusão de atividades (module, topic, test)
+        let status;
+        if (repproved) {
+          status = t("Repproved");
+        } else if (approved) {
+          status = t("Approved");
+        } else if (isEnrolled || completedModules > 0 || completedTopics > 0 || completedTests > 0) {
+          // Se o estudante está inscrito ou completou pelo menos uma atividade (módulo, tópico ou teste), considera-se "In progress"
+          status = t("In progress");
+        } else {
+          status = t("Not started");
         }
 
         dataExpanded.push({
@@ -244,16 +273,18 @@ export default function CourseReport({ data }) {
           name: student.name,
           email: student.email,
           country: student.country,
-          start_date: dayjs(startDate).format("DD MMM, YYYY"),
-          end_date: endDate ? dayjs(endDate).format("DD MMM, YYYY") : null,
-          nr_modules: `${studentActivity.filter((a) => a.activity_type === "module" && a.is_completed === 1).length}/${e.nr_modules}`,
-          nr_topics: `${studentActivity.filter((a) => a.activity_type === "topic" && a.is_completed === 1).length}/${e.nr_topics}`,
+          start_date: startDate
+            ? dayjs(startDate).format("DD MMM, YYYY")
+            : null,
+          end_date: repproved
+            ? "—" // Indica que o estudante foi reprovado, então não há data de conclusão
+            : endDate
+              ? dayjs(endDate).format("DD MMM, YYYY")
+              : null,
+          nr_modules: `${completedModules}/${e.nr_modules}`,
+          nr_topics: `${completedTopics}/${e.nr_topics}`,
           nr_tests: `${studentActivity.filter((a) => a.activity_type === "test" && a.is_completed === 1).length}/${e.nr_tests}`,
-          status: repproved
-            ? t("Failed")
-            : approved
-              ? t("Approved")
-              : t("In progress"),
+          status: status,
           lang: languages
             .filter((l) => l.id === course.id_lang)[0]
             .code.toUpperCase(), // Para surgir a informação do idioma no Excel
@@ -311,64 +342,7 @@ export default function CourseReport({ data }) {
               // Quando não existe dados na tabela, o botão de exportar é desativado
               disabled={tableData.length === 0}
               onClick={() =>
-                openExport(filteredData.length > 0 ? filteredData : tableData, [
-                  {
-                    title: t("Course"),
-                    dataIndex: "course_name",
-                    key: "course_name",
-                    width: "300px",
-                  },
-                  {
-                    title: t("Date start"),
-                    dataIndex: "start_date",
-                    key: "start_date",
-                  },
-                  {
-                    title: t("Date end"),
-                    dataIndex: "end_date",
-                    key: "end_date",
-                  },
-                  {
-                    title: t("Modules"),
-                    dataIndex: "nr_modules",
-                    key: "nr_modules",
-                  },
-                  {
-                    title: t("Topics"),
-                    dataIndex: "nr_topics",
-                    key: "nr_topics",
-                  },
-                  {
-                    title: t("Tests"),
-                    dataIndex: "nr_tests",
-                    key: "nr_tests",
-                  },
-                  {
-                    title: t("Approved"),
-                    dataIndex: "approved",
-                    key: "approved",
-                  },
-                  {
-                    title: t("Repproved"),
-                    dataIndex: "repproved",
-                    key: "repproved",
-                  },
-                  {
-                    title: t("Percentage"),
-                    dataIndex: "percentage",
-                    key: "percentage",
-                  },
-                  {
-                    title: t("Students"),
-                    dataIndex: "students",
-                    key: "students",
-                  },
-                  {
-                    title: t("Country"),
-                    dataIndex: "country",
-                    key: "country",
-                  },
-                ])
+                openExport(filteredData.length > 0 ? filteredData : tableData, getCourseReportColumns(t, true))
               }
               icon={<DownloadIcon />}
             >
@@ -428,64 +402,7 @@ export default function CourseReport({ data }) {
             pageSize: 5, // máximo 5 por página
             position: ["bottomCenter"], // paginação ao centro
           }}
-          columns={[
-            {
-              title: t("Course"),
-              dataIndex: "course_name",
-              key: "course_name",
-              width: "300px",
-            },
-            {
-              title: t("Date start"),
-              dataIndex: "start_date",
-              key: "start_date",
-            },
-            {
-              title: t("Date end"),
-              dataIndex: "end_date",
-              key: "end_date",
-            },
-            {
-              title: t("Modules"),
-              dataIndex: "nr_modules",
-              key: "nr_modules",
-            },
-            {
-              title: t("Topics"),
-              dataIndex: "nr_topics",
-              key: "nr_topics",
-            },
-            {
-              title: t("Tests"),
-              dataIndex: "nr_tests",
-              key: "nr_tests",
-            },
-            {
-              title: t("Approved"),
-              dataIndex: "approved",
-              key: "approved",
-            },
-            {
-              title: t("Repproved"),
-              dataIndex: "repproved",
-              key: "repproved",
-            },
-            {
-              title: t("Percentage"),
-              dataIndex: "percentage",
-              key: "percentage",
-            },
-            {
-              title: t("Students"),
-              dataIndex: "students",
-              key: "students",
-            },
-            {
-              title: t("Country"),
-              dataIndex: "country",
-              key: "country",
-            },
-          ]}
+          columns={getCourseReportColumns(t)}
         />
       </div>
     </div>

@@ -15,6 +15,7 @@ import dayjs from "dayjs";
 import ExportTable from "../../../components/admin/export/export";
 import DownloadIcon from "../../../assets/Backoffice/download.svg?react";
 import SearchIcon from "../../../assets/Backoffice/search.svg?react";
+import { getTestReportColumns } from "../../../utils/columns";
 
 
 
@@ -295,7 +296,7 @@ export default function TestReport({ data }) {
       const totalItems = attempt.meta_data.items.length;
       const score = `${correctCount}/${totalItems}`;
       const percentage =
-        totalItems > 0 ? `${(correctCount * 100) / totalItems}%` : "0%";
+        totalItems > 0 ? `${((correctCount * 100) / totalItems).toFixed(2)}%` : "0%";
       const time = formatAvgTime(attempt.meta_data.time);
 
       dataExpanded.push({
@@ -448,59 +449,7 @@ export default function TestReport({ data }) {
               // Quando não existe dados na tabela, o botão de exportar é desativado
               disabled={tableData.length === 0}
               onClick={() =>
-                openExport(filteredData.length > 0 ? filteredData : tableData, [
-                  {
-                    title: t("Test"),
-                    dataIndex: "test_name",
-                    key: "test_name",
-                    width: "300px",
-                  },
-                  {
-                    title: t("Date start"),
-                    dataIndex: "start_date",
-                    key: "start_date",
-                  },
-                  {
-                    title: t("Date end"),
-                    dataIndex: "end_date",
-                    key: "end_date",
-                  },
-                  {
-                    title: t("Name"),
-                    dataIndex: "user_name",
-                    key: "user_name",
-                  },
-                  {
-                    title: t("E-mail"),
-                    dataIndex: "user_email",
-                    key: "user_email",
-                  },
-                  {
-                    title: t("Course"),
-                    dataIndex: "course_name",
-                    key: "course_name",
-                  },
-                  {
-                    title: t("Attempts"),
-                    dataIndex: "attempts",
-                    key: "attempts",
-                  },
-                  {
-                    title: t("Average Score"),
-                    dataIndex: "avg_score",
-                    key: "avg_score",
-                  },
-                  {
-                    title: t("Average Percentage"),
-                    dataIndex: "avg_percentage",
-                    key: "avg_percentage",
-                  },
-                  {
-                    title: t("Average Time"),
-                    dataIndex: "avg_time",
-                    key: "avg_time",
-                  },
-                ])
+                openExport(filteredData.length > 0 ? filteredData : tableData, getTestReportColumns(t))
               }
               icon={<DownloadIcon />}
             >
@@ -558,59 +507,7 @@ export default function TestReport({ data }) {
             pageSize: 5, // máximo 5 por página
             position: ["bottomCenter"], // paginação ao centro
           }}
-          columns={[
-            {
-              title: t("Test"),
-              dataIndex: "test_name",
-              key: "test_name",
-              width: "300px",
-            },
-            {
-              title: t("Date start"),
-              dataIndex: "start_date",
-              key: "start_date",
-            },
-            {
-              title: t("Date end"),
-              dataIndex: "end_date",
-              key: "end_date",
-            },
-            {
-              title: t("Name"),
-              dataIndex: "user_name",
-              key: "user_name",
-            },
-            {
-              title: t("E-mail"),
-              dataIndex: "user_email",
-              key: "user_email",
-            },
-            {
-              title: t("Course"),
-              dataIndex: "course_name",
-              key: "course_name",
-            },
-            {
-              title: t("Attempts"),
-              dataIndex: "attempts",
-              key: "attempts",
-            },
-            {
-              title: t("Average Score"),
-              dataIndex: "avg_score",
-              key: "avg_score",
-            },
-            {
-              title: t("Average Percentage"),
-              dataIndex: "avg_percentage",
-              key: "avg_percentage",
-            },
-            {
-              title: t("Average Time"),
-              dataIndex: "avg_time",
-              key: "avg_time",
-            },
-          ]}
+          columns={getTestReportColumns(t)}
         />
       </div>
     </div>
