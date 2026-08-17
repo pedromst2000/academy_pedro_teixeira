@@ -346,7 +346,7 @@ export default function CourseReport({ data }) {
               // Quando não existe dados na tabela, o botão de exportar é desativado
               disabled={tableData.length === 0}
               onClick={() =>
-                openExport(filteredData.length > 0 ? filteredData : tableData, getCourseReportColumns(t, true))
+                openExport(filteredData.length > 0 ? filteredData : tableData, getCourseReportColumns(t, false))
               }
               icon={<DownloadIcon />}
             >

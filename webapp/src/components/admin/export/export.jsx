@@ -32,7 +32,6 @@ export default function ExportTable({ open, close, data, table, columns = [] }) 
   }, [columns]);
 
   useEffect(() => {
-    console.log(data);
     setDataToExport(data);
   }, [data]);
 

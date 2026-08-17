@@ -18,8 +18,8 @@ export const columnExcelWidths = {
     user_email: { wch: 40 }, // 300px
     user_country: { wch: 20 }, // 150px
     course: { wch: 40 }, // 300px
-    answer: { wch: 80 }, // 620px
-    question: { wch: 120 }, // 895px
+    answer: { wch: 75 }, // 757px
+    question: { wch: 105 }, // 1058px
   },
   defaultWidth: { wch: 11 }, // Largura padrão para outras colunas
 };
