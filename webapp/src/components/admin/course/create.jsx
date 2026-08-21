@@ -108,7 +108,7 @@ export default function Create({ open, close, products }) {
 						showSearch={{
 							optionFilterProp: ["label"],
 						}}
-						options={products?.map((p) => ({ label: p.name, value: p.id }))}
+						options={products.filter((p) => p.is_deleted === 0).map((p) => ({ label: p.name, value: p.id }))}
 					/>
 				</Form.Item>
 				<Form.Item

@@ -195,44 +195,54 @@ router.get("/report", async (req, res) => {
 	console.log("/// REPORTS COURSE ////");
 	const query = util.promisify(db.query).bind(db);
 	try {
-		const rows = await query(
-			"SELECT * FROM user WHERE id_lang = ? AND is_deleted = 0; " +
-				"SELECT * FROM course WHERE id_lang = ? AND is_deleted = 0; " +
-				"SELECT course_module.* FROM course_module LEFT JOIN course ON course.id = course_module.id_course WHERE id_lang = ? AND course.is_deleted = 0 AND course_module.is_deleted = 0; " +
-				"SELECT course_topic.*, course_module.id_course FROM course_topic LEFT JOIN course_module ON course_topic.id_course_module = course_module.id " +
-				"LEFT JOIN course ON course.id = course_module.id_course WHERE course.id_lang = ? AND course_module.is_deleted = 0 AND course_topic.is_deleted = 0 AND course.is_deleted = 0; " +
-				"SELECT course_test.*, course_module.id_course FROM course_test LEFT JOIN course_module ON course_test.id_course_module = course_module.id " +
-				"LEFT JOIN course ON course.id = course_module.id_course WHERE course.id_lang = ? AND course_module.is_deleted = 0 AND course_test.is_deleted = 0 AND course.is_deleted = 0; " +
-				"SELECT cua.*, course_test.title as `test_title`, user.name as `user_name` FROM course_user_activity cua LEFT JOIN course ON course.id = cua.id_course " +
-				"LEFT JOIN course_module ON cua.id_course_module = course_module.id LEFT JOIN course_topic ON cua.id_course_topic = course_topic.id " +
-				"LEFT JOIN course_test ON cua.id_course_test = course_test.id LEFT JOIN user ON user.id = cua.id_user " +
-				"WHERE course.id_lang = ? AND course.is_deleted = 0 AND (course_module.is_deleted = 0 OR cua.id_course_module IS NULL) " +
-				"AND (course_topic.is_deleted = 0 OR cua.id_course_topic IS NULL) " +
-				"AND (course_test.is_deleted = 0 OR cua.id_course_test IS NULL) " +
-				"ORDER BY cua.created_at DESC; ",
-			[
-				req.query.id_lang,
-				req.query.id_lang,
-				req.query.id_lang,
-				req.query.id_lang,
-				req.query.id_lang,
-				req.query.id_lang,
-				req.query.id_lang,
-				req.query.id_lang,
-			],
-		);
+		const idLang = req.query.id_lang;
+		const hasLanguageFilter = !!idLang;
 
-		let users = rows[0];
-		let courses = rows[1];
-		let modules = rows[2];
-		let topics = rows[3];
-		let tests = rows[4];
-		let activity = rows[5];
+		// SQL template builder - WHERE clause dinâmico baseado na presença de idLang
+		const buildSqlQueries = (filter) =>
+			`SELECT * FROM user WHERE ${filter ? "id_lang = ? AND" : ""} is_deleted = 0; ` +
+			`SELECT * FROM course WHERE ${filter ? "id_lang = ? AND" : ""} is_deleted = 0; ` +
+			`SELECT course_module.* FROM course_module LEFT JOIN course ON course.id = course_module.id_course WHERE ${filter ? "course.id_lang = ? AND" : ""} course.is_deleted = 0 AND course_module.is_deleted = 0; ` +
+			`SELECT course_topic.*, course_module.id_course FROM course_topic LEFT JOIN course_module ON course_topic.id_course_module = course_module.id ` +
+			`LEFT JOIN course ON course.id = course_module.id_course WHERE ${filter ? "course.id_lang = ? AND" : ""} course_module.is_deleted = 0 AND course_topic.is_deleted = 0 AND course.is_deleted = 0; ` +
+			`SELECT course_test.*, course_module.id_course FROM course_test LEFT JOIN course_module ON course_test.id_course_module = course_module.id ` +
+			`LEFT JOIN course ON course.id = course_module.id_course WHERE ${filter ? "course.id_lang = ? AND" : ""} course_module.is_deleted = 0 AND course_test.is_deleted = 0 AND course.is_deleted = 0; ` +
+			`SELECT cua.*, course_test.title as \`test_title\`, user.name as \`user_name\` FROM course_user_activity cua LEFT JOIN course ON course.id = cua.id_course ` +
+			`LEFT JOIN course_module ON cua.id_course_module = course_module.id LEFT JOIN course_topic ON cua.id_course_topic = course_topic.id ` +
+			`LEFT JOIN course_test ON cua.id_course_test = course_test.id LEFT JOIN user ON user.id = cua.id_user ` +
+			`WHERE ${filter ? "course.id_lang = ? AND" : ""} course.is_deleted = 0 AND (course_module.is_deleted = 0 OR cua.id_course_module IS NULL) ` +
+			`AND (course_topic.is_deleted = 0 OR cua.id_course_topic IS NULL) ` +
+			`AND (course_test.is_deleted = 0 OR cua.id_course_test IS NULL) ` +
+			`ORDER BY cua.created_at DESC; `;
 
-		res.send({ users, courses, modules, topics, tests, activity });
-	} catch (e) {
-		console.log(e);
-		res.status(500).send({ message: "Some error on server.", error: e });
+		// Build params array: repetir idLang para cada query que precisa do filtro
+		const buildParams = (filter) => filter ? [idLang, idLang, idLang, idLang, idLang, idLang, idLang] : [];
+
+		// Fetch FILTERED data (apenas para a linguagem selecionada, se houver filtro)
+		const filteredRows = await query(buildSqlQueries(hasLanguageFilter), buildParams(hasLanguageFilter));
+
+		// Fetch GLOBAL data (sempre sem filtro - todas as linguagens)
+		const globalRows = await query(buildSqlQueries(false), []);
+
+		const parseRows = (rows) => ({
+			users: rows[0],
+			courses: rows[1],
+			modules: rows[2],
+			topics: rows[3],
+			tests: rows[4],
+			activity: rows[5]
+		});
+
+		const filteredData = parseRows(filteredRows);
+		const globalData = parseRows(globalRows);
+
+		// Devolve os dados filtrados e globais em um único objeto
+		res.send({
+			filtered: filteredData,
+			global: globalData
+		});
+	} catch (err) {
+		throw err;
 	}
 });
 
