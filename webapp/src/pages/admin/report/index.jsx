@@ -1,15 +1,12 @@
 import axios from "axios";
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useCallback } from "react";
 import { useState } from "react";
-import { Button, Dropdown, Tabs, Tag } from "antd";
-import { IoMdMore } from "react-icons/io";
-import { FaRegEdit, FaRegFile, FaRegTrashAlt } from "react-icons/fa";
+import { Button, Tabs } from "antd";
 import { RxReload } from "react-icons/rx";
 import { Context } from "../../../utils/context";
 
 import endpoints from "../../../utils/endpoints";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 
 import CourseReport from "./courseReport";
 import TestReport from "./testReport";
@@ -17,33 +14,53 @@ import StudentProgress from "./studentProgress";
 import TestProgress from "./testProgress";
 
 export default function Report() {
-	const { user, selectedLanguage } = useContext(Context);
-	const [isLoading, setIsLoading] = useState(true);
-	const [data, setData] = useState([]);
+	const { selectedLanguage, languages } = useContext(Context);
+	const [data, setData] = useState([]); // Dados filtrados para a linguagem selecionada
+	const [globalData, setGlobalData] = useState([]); // Dados globais sem filtro de linguagem
+	const [products, setProducts] = useState([]);
+	const [isLoading, setIsLoading] = useState(false);
 
 	const { t } = useTranslation();
 
-	const navigate = useNavigate();
+	const fetchAllData = useCallback(() => {
+		const localParams = { id_lang: selectedLanguage.id };
+		setIsLoading(true);
 
-	useEffect(() => {
-		getData();
+		axios
+			.get(endpoints.course.report, { params: localParams })
+			.then((res) => {
+				setData(res.data.filtered);
+				setGlobalData(res.data.global);
+				console.log("Fetched data:", {
+					filtered: res.data.filtered,
+					global: res.data.global,
+				});
+			})
+			.catch((err) => {
+				console.error("Error fetching data:", err);
+			})
+			.finally(() => {
+				setIsLoading(false);
+			});
 	}, [selectedLanguage]);
 
-	function getData() {
-		setIsLoading(true);
+	const getProducts = useCallback(() => {
 		axios
-			.get(endpoints.course.report, {
-				params: { id_lang: selectedLanguage.id },
-			})
+			.get(endpoints.product.read)
 			.then((res) => {
-				setData(res.data);
-				setIsLoading(false);
+				if (res.data.length > 0) {
+						setProducts(res.data.filter((p) => p.is_deleted === 0).map((p) => ({ id: p.id, name: p.name })));
+				}
 			})
 			.catch((err) => {
 				console.log(err);
-				setIsLoading(false);
 			});
-	}
+	}, []);
+
+	useEffect(() => {
+		fetchAllData();
+		getProducts();
+	}, [fetchAllData, getProducts]);
 
 	return (
 		<div className="p-2">
@@ -54,7 +71,8 @@ export default function Report() {
 				<div>
 					<Button
 						size="large"
-						onClick={getData}
+						onClick={fetchAllData}
+						loading={isLoading}
 						icon={<RxReload />}
 						className="mr-2"
 					/>
@@ -97,7 +115,7 @@ export default function Report() {
 							key: "4",
 							label: t("Tests progress"),
 							forceRender: true,
-							children: <TestProgress data={data} />,
+							children: <TestProgress data={globalData} products={products} languages={languages} />,
 						},
 					]}
 				/>

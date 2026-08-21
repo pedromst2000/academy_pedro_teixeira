@@ -370,7 +370,7 @@ export default function UserDetails() {
 
                           <div className="flex flex-col justify-center items-center gap-2">
                             <p className="text-[11px]">{t("Passing score")}</p>
-                            <p className="text-sm">{testSettings.passing_score ?? "80"}%</p>
+                            <p className="text-sm">{testSettings?.passing_score ?? "80"}%</p>
                           </div>
                         </div>
                         <div className="p-4">

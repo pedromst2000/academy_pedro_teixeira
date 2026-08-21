@@ -77,7 +77,7 @@ export default function Settings({ course }) {
       .get(endpoints.product.read)
       .then((res) => {
         if (res.data.length > 0) {
-          setProducts(res.data.map((p) => ({ value: p.id, label: p.name })));
+          setProducts(res.data.filter((p) => p.is_deleted === 0).map((p) => ({ value: p.id, label: p.name })));
         }
       })
       .catch((err) => {

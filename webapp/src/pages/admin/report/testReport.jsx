@@ -72,11 +72,38 @@ export default function TestReport({ data }) {
     }
   }
 
+  // Função auxiliar para verificar se o aluno é reprovado num teste
+  const isTestRepproved = (testAttempts, test) => {
+    // Não é reprovado se não houver tentativas limite
+    if (!test || !test.settings) {
+      return false;
+    }
+    
+    let testSettings = typeof test.settings === "string" ? JSON.parse(test.settings) : test.settings;
+    
+    // Apenas marca como reprovado se retries_allowed for um número válido
+    if (!testSettings || !testSettings.retries_allowed || testSettings.retries_allowed <= 0) {
+      return false;
+    }
+    
+    // Verificar se o aluno passou no teste
+    const testPassed = testAttempts.some((a) => a.is_completed === 1);
+    if (testPassed) {
+      return false; // Se passou, não é reprovado
+    }
+    
+    // Contar tentativas falhadas
+    const failedAttempts = testAttempts.filter((a) => a.is_completed === 0).length;
+    
+    // Apenas reprovado se tiver tentativas falhadas e se o número de tentativas falhadas for >= permitido
+    return failedAttempts > 0 && failedAttempts >= testSettings.retries_allowed;
+  };
+
   function prepareData(obj) {
     let aux = [];
     if (obj.users && obj.activity && obj.activity.length > 0) {
       let testsActivity = obj.activity.filter(
-        (a) => a.activity_type === "test",
+        (a) => a.activity_type === "test" && a.is_deleted === 0,
       );
 
       // Agrupa as atividades por utilizador e teste, para calcular médias e outras métricas
@@ -162,6 +189,19 @@ export default function TestReport({ data }) {
 
         const avgTime = formatAvgTime(avgTimeInSeconds);
 
+        // Debug status: Approved se passou na última tentativa, Repproved se esgotou as tentativas permitidas
+        const sortedAttempts = [...activityAttempts].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        const lastAttempt = sortedAttempts[sortedAttempts.length - 1];
+        let Status;
+        
+        if (lastAttempt.is_completed === 1) {
+          Status = "Approved";
+        } else if (isTestRepproved(activityAttempts, test)) {
+          Status = "Repproved";
+        } else {
+          Status = "In progress";
+        }
+
         aux.push({
           id: `${attemptSample.id_user}_${attemptSample.id_course_test}`, // Chave única para cada combinação de utilizador-teste
           test_name: attemptSample.test_title,
@@ -178,6 +218,7 @@ export default function TestReport({ data }) {
           avg_score: avgScore + "/" + attemptSample.meta_data.items.length,
           avg_percentage: avgPercentage + "%",
           avg_time: avgTime,
+          status: Status,
           lang: languages
             .filter(
               (l) =>
@@ -198,7 +239,7 @@ export default function TestReport({ data }) {
 
   function filterData(values) {
     // Começar com as atividades de teste (ignorar outros tipos de atividade)
-    let testsActivity = activity.filter((a) => a.activity_type === "test");
+    let testsActivity = activity.filter((a) => a.activity_type === "test" && a.is_deleted === 0);
 
     // Filtrar por curso se selecionado
     if (values.course) {
@@ -277,7 +318,8 @@ export default function TestReport({ data }) {
       (a) =>
         a.activity_type === "test" &&
         a.id_user === e.id_user &&
-        a.id_course_test === e.id_course_test,
+        a.id_course_test === e.id_course_test &&
+        a.is_deleted === 0,
     );
 
     //Ordena as tentativas por data

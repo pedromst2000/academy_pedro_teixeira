@@ -481,7 +481,7 @@ export default function CourseDetails() {
 										),
 										children: <CourseMaterial data={data.course} />,
 									},
-								data.course.objection.tabs &&
+								data.course.objection?.tabs &&
 									data.course.objection.tabs?.length > 0 && {
 										key: "3",
 										label: (

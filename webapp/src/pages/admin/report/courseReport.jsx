@@ -44,25 +44,43 @@ export default function CourseReport({ data }) {
 
   // Função auxiliar para verificar se o aluno é aprovado
   const isStudentApproved = (studentActivity, course, modules, topics, tests) => {
-    const courseCompleted = studentActivity.some((a) => a.activity_type === "course" && a.id_course === course.id && a.is_completed === 1);
-    const completedModules = studentActivity.filter((a) => a.activity_type === "module" && a.id_course === course.id && a.is_completed === 1).length;
-    const allModulesCompleted = completedModules === modules.length && modules.length > 0;
-    const completedTopics = studentActivity.filter((a) => a.activity_type === "topic" && a.id_course === course.id && a.is_completed === 1).length;
-    const allTopicsCompleted = completedTopics === topics.length && topics.length > 0;
-    const completedTests = studentActivity.filter((a) => a.activity_type === "test" && a.id_course === course.id && a.is_completed === 1).length;
-    const allTestsCompleted = completedTests === tests.length && tests.length > 0;
-    return courseCompleted && allModulesCompleted && allTopicsCompleted && allTestsCompleted;
+
+    // Um aluno não pode ser aprovado se o curso não tiver módulos, tópicos ou testes
+    if (modules.length === 0 || (topics.length === 0 && tests.length === 0)) {
+      return false;
+    }
+    
+    const completedModules = studentActivity.filter((a) => a.activity_type === "module" && a.id_course === course.id && a.is_completed === 1 && a.is_deleted === 0).length;
+    const completedTopics = studentActivity.filter((a) => a.activity_type === "topic" && a.id_course === course.id && a.is_completed === 1 && a.is_deleted === 0).length;
+    const completedTests = studentActivity.filter((a) => a.activity_type === "test" && a.id_course === course.id && a.is_completed === 1 && a.is_deleted === 0).length;
+    
+    // Apenas verifica módulos, tópicos e testes se eles existirem no curso
+    const needToCheckModules = modules.length > 0;
+    const needToCheckTopics = topics.length > 0;
+    const needToCheckTests = tests.length > 0;
+    
+    const allModulesCompleted = !needToCheckModules || completedModules === modules.length;
+    const allTopicsCompleted = !needToCheckTopics || completedTopics === topics.length;
+    const allTestsCompleted = !needToCheckTests || completedTests === tests.length;
+    
+    // Aprovado APENAS se completou todos os módulos, tópicos e testes que existem no curso
+    return (allModulesCompleted && allTopicsCompleted && allTestsCompleted);
   };
 
   // Função auxiliar para verificar se o aluno é reprovado
   const isStudentRepproved = (studentActivity, tests) => {
+    // Cannot be repproved if course has no tests
+    if (tests.length === 0) {
+      return false;
+    }
+    
     for (let t = 0; t < tests.length; t++) {
       let testSettings = tests[t].settings ? JSON.parse(tests[t].settings) : tests[t].settings;
       // Apenas marca como reprovado se retries_allowed for um número válido
       if (testSettings && testSettings.retries_allowed && testSettings.retries_allowed > 0) {
-        const testPassed = studentActivity.some((a) => a.activity_type === "test" && a.id_course_test === tests[t].id && a.is_completed === 1);
+        const testPassed = studentActivity.some((a) => a.activity_type === "test" && a.id_course_test === tests[t].id && a.is_completed === 1 && a.is_deleted === 0);
         if (!testPassed) {
-          const failedAttempts = studentActivity.filter((a) => a.activity_type === "test" && a.id_course_test === tests[t].id && a.is_completed === 0).length;
+          const failedAttempts = studentActivity.filter((a) => a.activity_type === "test" && a.id_course_test === tests[t].id && a.is_completed === 0 && a.is_deleted === 0).length;
           // Apenas reprovado se tiver tentativas falhadas e se o número de tentativas falhadas for maior ou igual ao permitido
           if (failedAttempts > 0 && failedAttempts >= testSettings.retries_allowed) {
             return true;
@@ -91,7 +109,7 @@ export default function CourseReport({ data }) {
         let approvedUsers = new Set();
         for (let s = 0; s < students.length; s++) {
           let student = students[s];
-          let studentActivity = obj.activity.filter((a) => a.id_user === student.id);
+          let studentActivity = obj.activity.filter((a) => a.id_user === student.id && a.is_deleted === 0);
           
           if (isStudentApproved(studentActivity, course, modules, topics, tests)) {
             approvedUsers.add(student.id);
@@ -103,7 +121,7 @@ export default function CourseReport({ data }) {
         let repprovedUsers = new Set();
         for (let s = 0; s < students.length; s++) {
           let student = students[s];
-          let studentActivity = obj.activity.filter((a) => a.id_user === student.id);
+          let studentActivity = obj.activity.filter((a) => a.id_user === student.id && a.is_deleted === 0);
           
           if (isStudentRepproved(studentActivity, tests)) {
             repprovedUsers.add(student.id);
@@ -160,8 +178,8 @@ export default function CourseReport({ data }) {
     if (values.country && values.country.length > 0) {
       newData = newData.filter((n) => {
         // Se country_limit é true, apenas incluir se o país corresponder
-        if (n.settings.country_limit) {
-          return n.settings.country && Array.isArray(n.settings.country) && n.settings.country.some((item) => values.country.includes(item));
+        if (n.settings?.country_limit) {
+          return n.settings?.country && Array.isArray(n.settings.country) && n.settings.country.some((item) => values.country.includes(item));
         }
         // Se country_limit é false (All), não incluir quando filtrar por país específico
         return false;
@@ -188,20 +206,23 @@ export default function CourseReport({ data }) {
   const expandedRowRender = (e) => {
     const columnsExpanded = getExpandedStudentColumns(t);
 
-    let course = data.courses.filter((c) => c.id === e.id)[0];
-    let students = data.users.filter((u) => (course.settings.country_limit ? course.settings.country.includes(u.country) : u.id_lang === course.id_lang));
-    let activity = data.activity.filter((a) => a.id_course === e.id);
+    let course = data.courses?.filter((c) => c.id === e.id)[0];
+    if (!course) return null;
+    
+    let students = data.users?.filter((u) => (course.settings?.country_limit ? course.settings?.country.includes(u.country) : u.id_lang === course.id_lang)) || [];
+    let activity = data.activity?.filter((a) => a.id_course === e.id) || [];
 
     const dataExpanded = [];
 
     for (let i = 0; i < students.length; i++) {
       let student = students[i];
-      let studentActivity = activity.filter((a) => a.id_user === student.id);
+      let studentActivity = activity.filter((a) => a.id_user === student.id && a.is_deleted === 0);
       
       // Filtra apenas atividades relevantes (enroll, module, topic, test) - course activity sozinha não conta
-      const relevantActivity = studentActivity.filter((a) => ['enroll', 'module', 'topic', 'test'].includes(a.activity_type));
+      const relevantActivity = studentActivity.filter((a) => ['enroll', 'module', 'topic', 'test'].includes(a.activity_type) && a.is_deleted === 0);
       
-      if (relevantActivity.length === 0) {
+      if (relevantActivity.length === 0 && studentActivity.length === 0) {
+        // Se o estudante não tiver nenhuma atividade relevante e nenhuma atividade de curso, considera-se que ele não começou o curso
         dataExpanded.push({
           ID: student.id,
           name: student.name,
@@ -220,14 +241,20 @@ export default function CourseReport({ data }) {
         });
       } else {
         // Verificar status de inscrição
-        const isEnrolled = studentActivity.some((a) => a.activity_type === "enroll" && a.is_completed === 1);
+        const isEnrolled = studentActivity.some((a) => a.activity_type === "enroll" && a.is_completed === 1 && a.is_deleted === 0);
         
         // Obter data de início - preferir registro de inscrição explícito, recorrer à atividade mais antiga
-        let startDate = studentActivity.filter((a) => a.activity_type === "enroll")[0]?.created_at;
+        let startDate = studentActivity.filter((a) => a.activity_type === "enroll" && a.is_deleted === 0)[0]?.created_at;
         if (!startDate) {
           // Fallback: usar a data de atividade mais antiga se não houver início de inscrição (enroll)
           startDate = studentActivity
-            .filter((a) => ['topic', 'module', 'test'].includes(a.activity_type))
+            .filter((a) => ['topic', 'module', 'test'].includes(a.activity_type) && a.is_deleted === 0)
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0]?.created_at;
+        }
+        if (!startDate) {
+          // Second fallback: usar qualquer atividade mais antiga se ainda não houver data
+          startDate = studentActivity
+            .filter((a) => a.is_deleted === 0)
             .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0]?.created_at;
         }
         
@@ -245,28 +272,38 @@ export default function CourseReport({ data }) {
         let approved = isStudentApproved(studentActivity, tempCourse, tempModules, tempTopics, tempTests);
         
         // Obter contagens de conclusão para exibição
-        const completedModules = studentActivity.filter((a) => a.activity_type === "module" && a.id_course === course.id && a.is_completed === 1).length;
-        const completedTopics = studentActivity.filter((a) => a.activity_type === "topic" && a.id_course === course.id && a.is_completed === 1).length;
-        const completedTests = studentActivity.filter((a) => a.activity_type === "test" && a.id_course === course.id && a.is_completed === 1).length;
+        const completedModules = studentActivity.filter((a) => a.activity_type === "module" && a.id_course === course.id && a.is_completed === 1 && a.is_deleted === 0).length;
+        const completedTopics = studentActivity.filter((a) => a.activity_type === "topic" && a.id_course === course.id && a.is_completed === 1 && a.is_deleted === 0).length;
+        const completedTests = studentActivity.filter((a) => a.activity_type === "test" && a.id_course === course.id && a.is_completed === 1 && a.is_deleted === 0).length;
+        
+        // Apenas verifica módulos, tópicos e testes se eles existirem no curso
+        const displayModules = e.nr_modules > 0 ? `${completedModules}/${e.nr_modules}` : "—";
+        const displayTopics = e.nr_topics > 0 ? `${completedTopics}/${e.nr_topics}` : "—";
+        const displayTests = e.nr_tests > 0 ? `${studentActivity.filter((a) => a.activity_type === "test" && a.is_completed === 1 && a.is_deleted === 0).length}/${e.nr_tests}` : "—";
         
         // Defina endDate apenas se o aluno for aprovado (concluiu tudo)
         if (approved) {
-          endDate = studentActivity.filter((a) => a.activity_type === "course" && a.is_completed === 1)[0]?.created_at;
+          endDate = studentActivity.filter((a) => a.activity_type === "course" && a.is_completed === 1 && a.is_deleted === 0)[0]?.created_at;
         }
         
-        // Verifica se o estudante foi reprovado apenas se estiver matriculado (enrolled) e se tiver tentado os testes
-        let repproved = isEnrolled && isStudentRepproved(studentActivity, tests);
+        // Verifica se o estudante foi reprovado (independente do status de enrolled)
+        let repproved = isStudentRepproved(studentActivity, tests);
+        
+        // Verificar se o aluno tem qualquer atividade relevante no curso (enroll, module, topic, test, course)
+        const hasAnyRelevantActivity = studentActivity.some((a) => 
+          ['enroll', 'module', 'topic', 'test', 'course'].includes(a.activity_type) && a.is_deleted === 0
+        );
         
         // Determina o status do estudante com base nas condições: Repproved > Approved > In Progress > Not Started
         // Prioridade: Repproved > Approved > In Progress > Not Started
-        // "In progress" requer inscrição (enroll) ou conclusão de atividades (module, topic, test)
+        // "In progress" requer qualquer atividade relevante na course (enroll, module, topic, test, course)
         let status;
         if (repproved) {
           status = t("Repproved");
         } else if (approved) {
           status = t("Approved");
-        } else if (isEnrolled || completedModules > 0 || completedTopics > 0 || completedTests > 0) {
-          // Se o estudante está inscrito ou completou pelo menos uma atividade (módulo, tópico ou teste), considera-se "In progress"
+        } else if (isEnrolled || completedModules > 0 || completedTopics > 0 || completedTests > 0 || hasAnyRelevantActivity) {
+          // Se o estudante está inscrito, completou atividades, ou tem qualquer atividade relevante, considera-se "In progress"
           status = t("In progress");
         } else {
           status = t("Not started");
@@ -279,15 +316,15 @@ export default function CourseReport({ data }) {
           country: student.country,
           start_date: startDate
             ? dayjs(startDate).format("DD MMM, YYYY")
-            : null,
+            : "—",
           end_date: repproved
             ? "—" // Indica que o estudante foi reprovado, então não há data de conclusão
             : endDate
               ? dayjs(endDate).format("DD MMM, YYYY")
-              : null,
-          nr_modules: `${completedModules}/${e.nr_modules}`,
-          nr_topics: `${completedTopics}/${e.nr_topics}`,
-          nr_tests: `${studentActivity.filter((a) => a.activity_type === "test" && a.is_completed === 1).length}/${e.nr_tests}`,
+              : "—",
+          nr_modules: displayModules,
+          nr_topics: displayTopics,
+          nr_tests: displayTests,
           status: status,
           lang: languages
             .filter((l) => l.id === course.id_lang)[0]

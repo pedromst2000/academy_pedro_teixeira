@@ -1,6 +1,6 @@
 import { Table } from "antd";
 
-function ExportData({ data, columns, columnMapping = {} }) {
+function ExportData({ data, columns, columnMapping = {}, translate }) {
 
   const filteredColumns = columns
     .map((col) => ({

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button, Drawer, Steps, Form } from "antd";
+import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
@@ -16,6 +17,8 @@ export default function ExportTable({ open, close, data, table, columns = [] }) 
   const [selectedColumns, setSelectedColumns] = useState([]);
   const [columnMapping, setColumnMapping] = useState({});
 
+    const { t } = useTranslation();
+  
   const [form] = Form.useForm();
 
   // Mapeia os títulos das colunas para exibição amigável (por exemplo, "course_name" para "Nome do Curso")
@@ -200,13 +203,13 @@ export default function ExportTable({ open, close, data, table, columns = [] }) 
               onClick={form.submit}
               disabled={selectedColumns.length === 0}
             >
-              Seguinte
+              {t("Next")}
             </Button>
           )}
           {current === 1 && (
             <>
               <Button className="mr-2" onClick={() => setCurrent(0)}>
-                Anterior
+                {t("Previous")}
               </Button>
               <Button
                 loading={isButtonLoading}
@@ -242,6 +245,7 @@ export default function ExportTable({ open, close, data, table, columns = [] }) 
               onFormChange={handleFormColumnsChange}
               columnMapping={columnMapping}
               columns={columns}
+              translate={t}
             />
           )}
           {current === 1 && (
@@ -250,6 +254,7 @@ export default function ExportTable({ open, close, data, table, columns = [] }) 
               columns={columnsToExport}
               table={table}
               columnMapping={columnMapping}
+              translate={t}
             />
           )}
         </div>

@@ -159,6 +159,11 @@ export const getTestReportColumns = (t) => {
       dataIndex: "avg_time",
       key: "avg_time",
     },
+    {
+      title: t("Status"),
+      dataIndex: "status",
+      key: "status",
+    },
   ];
 };
 
