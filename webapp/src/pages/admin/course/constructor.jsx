@@ -122,7 +122,10 @@ function SortableTopic({ item, onDelete, onCommitLabel, isDeleting, canMoveUp, c
               </Space>
 
               <Space>
+              {/* BOTÃO EDITAR - disabled para items não salvos na BD */}
                 <Button
+                  disabled={item.id.split("-")[0].startsWith("new")}
+                  title={item.id.split("-")[0].startsWith("new") ? `Salve o ${item.type === "test" ? "teste" : "tópico"} primeiro para editar este item` : "Editar item"}
                   onClick={() => navigate(`/admin/courses/${course.id}/${item.type === "topic" ? "topic" : "test"}/${parseInt(item.id.split("-")[1])}`)}
                   icon={<AiOutlineEdit />}
                 />
@@ -361,7 +364,14 @@ export default function Constructor({ course }) {
         id_lang: selectedLanguage.id,
       });
       console.log(insert);
-      setOriginal(Object.assign([], modules));
+      
+      // Recarrega os dados do curso após salvar para garantir que o estado local está sincronizado com a BD
+      await getData();
+      
+      // Limpa os estados de exclusão pendentes após salvar
+      setDeletingItems(new Set());
+      setDeletingModules(new Set());
+      
       message.success("Estado guardado!");
     } catch (err) {
       console.log(err);
