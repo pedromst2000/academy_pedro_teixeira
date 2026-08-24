@@ -124,8 +124,8 @@ function SortableTopic({ item, onDelete, onCommitLabel, isDeleting, canMoveUp, c
               <Space>
               {/* BOTÃO EDITAR - disabled para items não salvos na BD */}
                 <Button
-                  disabled={item.id.split("-")[0].startsWith("new")}
-                  title={item.id.split("-")[0].startsWith("new") ? `Salve o ${item.type === "test" ? "teste" : "tópico"} primeiro para editar este item` : "Editar item"}
+                  disabled={!item.id || item.id.split("-")[0].startsWith("new")}
+                  title={!item.id ? "Item inválido" : item.id.split("-")[0].startsWith("new") ? `Salve o ${item.type === "test" ? "teste" : "tópico"} primeiro para editar este item` : "Editar item"}
                   onClick={() => navigate(`/admin/courses/${course.id}/${item.type === "topic" ? "topic" : "test"}/${parseInt(item.id.split("-")[1])}`)}
                   icon={<AiOutlineEdit />}
                 />
@@ -247,6 +247,7 @@ function SortableModule({
 export default function Constructor({ course }) {
   const { createLog, user, selectedLanguage } = useContext(Context);
   const [isUnsaved, setIsUnsaved] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [original, setOriginal] = useState([]);
   const [modules, setModules] = useState([]);
 
@@ -283,24 +284,27 @@ export default function Constructor({ course }) {
           id: `mod-${mod.id}`,
           title: mod.title,
           items: mod.items
-            ? JSON.parse(mod.items).map((i) => {
-                if (i.type === "test") {
-                  if (res.data.tests.filter((t) => i.id === t.id).length > 0)
-                    return {
-                      id: `test-${res.data.tests.filter((t) => i.id === t.id)[0].id}`,
-                      title: res.data.tests.filter((t) => i.id === t.id)[0].title,
-                      type: i.type,
-                    };
-                }
-                if (i.type === "topic") {
-                  if (res.data.topics.filter((t) => i.id === t.id).length > 0)
-                    return {
-                      id: `topic-${res.data.topics.filter((t) => i.id === t.id)[0].id}`,
-                      title: res.data.topics.filter((t) => i.id === t.id)[0].title,
-                      type: i.type,
-                    };
-                }
-              })
+            ? JSON.parse(mod.items)
+                .map((i) => {
+                  if (i.type === "test") {
+                    if (res.data.tests.filter((t) => i.id === t.id).length > 0)
+                      return {
+                        id: `test-${res.data.tests.filter((t) => i.id === t.id)[0].id}`,
+                        title: res.data.tests.filter((t) => i.id === t.id)[0].title,
+                        type: i.type,
+                      };
+                  }
+                  if (i.type === "topic") {
+                    if (res.data.topics.filter((t) => i.id === t.id).length > 0)
+                      return {
+                        id: `topic-${res.data.topics.filter((t) => i.id === t.id)[0].id}`,
+                        title: res.data.topics.filter((t) => i.id === t.id)[0].title,
+                        type: i.type,
+                      };
+                  }
+                  return null; // Devolve null se o item não for encontrado
+                })
+                .filter((item) => item !== null) // Remove items nulos (não encontrados)
             : [],
         }));
 
@@ -338,14 +342,49 @@ export default function Constructor({ course }) {
 
   /* ---------- Guardar (persistir) ---------- */
   async function save() {
+    setIsSaving(true);
     try {
+      // Detectar items deletados por undo/redo comparando com o estado original
+      const actualDeletedItems = new Set(deletingItems);
+      const actualDeletedModules = new Set(deletingModules);
+
+      // Extrair IDs dos items e módulos
+      const originalItemIds = new Set();
+      const originalModuleIds = new Set();
+      const currentItemIds = new Set();
+      const currentModuleIds = new Set();
+
+      original.forEach((mod) => {
+        originalModuleIds.add(mod.id);
+        mod.items.forEach((i) => originalItemIds.add(i.id));
+      });
+
+      modules.forEach((mod) => {
+        currentModuleIds.add(mod.id);
+        mod.items.forEach((i) => currentItemIds.add(i.id));
+      });
+
+      // Detectar items que estavam no original mas não estão no estado atual (foram deletados)
+      originalItemIds.forEach((id) => {
+        if (!currentItemIds.has(id) && !id.split("-")[0].startsWith("new")) {
+          actualDeletedItems.add(id);
+        }
+      });
+
+      // Módulos que estavam no original mas não estão agora = foram deletados
+      originalModuleIds.forEach((id) => {
+        if (!currentModuleIds.has(id) && !id.split("-")[0].startsWith("new")) {
+          actualDeletedModules.add(id);
+        }
+      });
+
       const insert = await axios.post(endpoints.course.module, {
         data: modules.map((m) => ({
           ...m,
           id_course: course.id,
           items: m.items.map((i) => ({ ...i, id_course_module: m.id })),
         })),
-        deleted: { items: Array.from(deletingItems), modules: Array.from(deletingModules) },
+        deleted: { items: Array.from(actualDeletedItems), modules: Array.from(actualDeletedModules) },
       });
 
       await createLog({
@@ -359,7 +398,7 @@ export default function Constructor({ course }) {
             items: m.items.map((i) => ({ ...i, id_course_module: m.id })),
           })),
           name: course.name,
-          deleted: { items: Array.from(deletingItems), modules: Array.from(deletingModules) },
+          deleted: { items: Array.from(actualDeletedItems), modules: Array.from(actualDeletedModules) },
         }),
         id_lang: selectedLanguage.id,
       });
@@ -372,10 +411,16 @@ export default function Constructor({ course }) {
       setDeletingItems(new Set());
       setDeletingModules(new Set());
       
+      // Após salvar, começamos uma nova sessão sem histórico prévio
+      setHistory([]);
+      setFuture([]);
+      
       message.success("Estado guardado!");
     } catch (err) {
       console.log(err);
       message.error("Falha ao guardar.");
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -624,13 +669,13 @@ export default function Constructor({ course }) {
     <div>
       <Space wrap>
         <Button onClick={() => setModules((p) => [...p, { id: makeId("newmod-"), title: "Novo módulo", items: [] }])}>+ Novo módulo</Button>
-        <Button onClick={undo} disabled={!history.length}>
+        <Button onClick={undo} disabled={!history.length || isSaving}>
           Undo
         </Button>
-        <Button onClick={redo} disabled={!future.length}>
+        <Button onClick={redo} disabled={!future.length || isSaving}>
           Redo
         </Button>
-        <Button type="primary" onClick={save} disabled={!isUnsaved}>
+        <Button type="primary" onClick={save} disabled={!isUnsaved || isSaving} loading={isSaving}>
           Guardar
         </Button>
       </Space>
