@@ -465,18 +465,30 @@ router.post("/module", async (req, res, next) => {
 				if (aux.items && aux.items.length > 0) {
 					let newItems = [];
 					for (let z = 0; z < aux.items.length; z++) {
+						// Verifica se o item é um novo teste ou tópico
+						const isNewTest = aux.items[z].id.split("-")[0] === "newtest";
+						const isNewTopic = aux.items[z].id.split("-")[0] === "newtopic";
+						
+						const itemData = {
+							id:
+								isNewTest || isNewTopic
+									? null
+									: parseInt(aux.items[z].id.split("-")[1]),
+							id_course_module: aux.id,
+							title: aux.items[z].title,
+							is_deleted: 0,
+						};
+						
+						// Adiciona configurações padrão para novos testes
+						if (isNewTest && aux.items[z].type === "test") {
+							itemData.settings = JSON.stringify({
+								passing_score: 75,
+							});
+						}
+						
 						const insertedItem = await query(
 							`INSERT INTO ${aux.items[z].type === "test" ? "course_test" : "course_topic"} SET ? ON DUPLICATE KEY UPDATE title = VALUES(title), id_course_module = VALUES(id_course_module), is_deleted = 0`,
-							{
-								id:
-									aux.items[z].id.split("-")[0] === "newtopic" ||
-									aux.items[z].id.split("-")[0] === "newtest"
-										? null
-										: parseInt(aux.items[z].id.split("-")[1]),
-								id_course_module: aux.id,
-								title: aux.items[z].title,
-								is_deleted: 0,
-							},
+							itemData,
 						);
 
 						newItems.push({
@@ -499,7 +511,8 @@ router.post("/module", async (req, res, next) => {
 			if (deletedItems.length > 0) {
 				let deletedItemsId = deletedItems
 					.filter((_t) => _t.includes("topic"))
-					.map((_i) => parseInt(_i.split("-")[1]));
+					.map((_i) => parseInt(_i.split("-")[1]))
+					.filter((_id) => !isNaN(_id)); // Apenas processa IDs válidos da BD
 				if (deletedItemsId.length > 0) {
 					await query(
 						"UPDATE course_topic SET is_deleted = 1 WHERE id IN (?)",
@@ -509,7 +522,8 @@ router.post("/module", async (req, res, next) => {
 
 				let deletedTestsId = deletedItems
 					.filter((_t) => _t.includes("test"))
-					.map((_i) => parseInt(_i.split("-")[1]));
+					.map((_i) => parseInt(_i.split("-")[1]))
+					.filter((_id) => !isNaN(_id));
 				if (deletedTestsId.length > 0) {
 					await query(
 						"UPDATE course_test SET is_deleted = 1 WHERE id IN (?)",
@@ -519,9 +533,9 @@ router.post("/module", async (req, res, next) => {
 			}
 
 			if (deletedModules.length > 0) {
-				let deletedModulesId = deletedModules.map((_i) =>
-					parseInt(_i.split("-")[1]),
-				);
+				let deletedModulesId = deletedModules
+					.map((_i) => parseInt(_i.split("-")[1]))
+					.filter((_id) => !isNaN(_id));
 				console.log(deletedModulesId);
 				if (deletedModulesId.length > 0) {
 					await query(
