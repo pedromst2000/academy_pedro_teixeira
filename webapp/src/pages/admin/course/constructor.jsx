@@ -31,7 +31,7 @@ function Grip({ attributes, listeners, title }) {
 }
 
 /* -------------------- Wrapper de animação de remoção -------------------- */
-function RemoveAnim({ isRemoving, duration = 200, children }) {
+function RemoveAnim({ isRemoving, duration = 400, children }) {
   return (
     <div
       className="grid transition-all"
@@ -39,7 +39,7 @@ function RemoveAnim({ isRemoving, duration = 200, children }) {
         gridTemplateRows: isRemoving ? "0fr" : "1fr",
         opacity: isRemoving ? 0 : 1,
         transform: isRemoving ? "scale(0.95)" : "scale(1)",
-        transition: `grid-template-rows ${duration}ms, opacity ${duration}ms, transform ${duration}ms`,
+        transition: `grid-template-rows ${duration}ms ease-out, opacity ${duration}ms ease-out, transform ${duration}ms ease-out`,
       }}
     >
       <div className="overflow-hidden">{children}</div>
@@ -258,8 +258,12 @@ export default function Constructor({ course }) {
   /* ---------- Eliminar com animação ---------- */
   const [deletingItems, setDeletingItems] = useState(new Set());
   const [deletingModules, setDeletingModules] = useState(new Set());
-  const timersRef = useRef({ items: new Map(), mods: new Map() });
-  const ANIM_MS = 200;
+  const timersRef = useRef(new Map()); // Map para armazenar timers de remoção de items/módulos
+  const pendingDeletionsRef = useRef({ items: new Set(), modules: new Set() }); // Track de items/módulos pendentes de remoção
+  const confirmedDeletionsRef = useRef({ items: new Set(), modules: new Set() }); // Track de items/módulos confirmados para remoção (após flush)
+  const flushTimerRef = useRef(null);
+  const historyPushedRef = useRef(false); // Track se o histórico foi adicionado neste lote de deleção
+  const ANIM_MS = 400;
 
   const navigate = useNavigate();
 
@@ -311,6 +315,13 @@ export default function Constructor({ course }) {
         console.log(modulesData);
         setModules(modulesData);
         setOriginal(Object.assign([], modulesData));
+        
+        // Resetar os estados de deleção e histórico 
+        historyPushedRef.current = false;
+        pendingDeletionsRef.current.items.clear();
+        pendingDeletionsRef.current.modules.clear();
+        confirmedDeletionsRef.current.items.clear();
+        confirmedDeletionsRef.current.modules.clear();
       }
     } catch (err) {
       console.log(err);
@@ -343,46 +354,96 @@ export default function Constructor({ course }) {
   /* ---------- Guardar (persistir) ---------- */
   async function save() {
     setIsSaving(true);
-    try {
-      // Detectar items deletados por undo/redo comparando com o estado original
-      const actualDeletedItems = new Set(deletingItems);
-      const actualDeletedModules = new Set(deletingModules);
+    
+   // Se houver um flush pendente, cancela o timer e aplica as deleções imediatamente
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+      
+      // Aplica as deleções pendentes imediatamente
+      const itemsToDelete = new Set(pendingDeletionsRef.current.items);
+      const modulesToDelete = new Set(pendingDeletionsRef.current.modules);
+      
+      if (itemsToDelete.size > 0 || modulesToDelete.size > 0) {
 
-      // Extrair IDs dos items e módulos
+        // Marca os items/módulos como confirmados para deleção
+        itemsToDelete.forEach(id => confirmedDeletionsRef.current.items.add(id));
+        modulesToDelete.forEach(id => confirmedDeletionsRef.current.modules.add(id));
+        
+
+        setModules((prev) =>
+          prev
+            .filter((m) => !modulesToDelete.has(m.id))
+            .map((m) => ({
+              ...m,
+              items: m.items && Array.isArray(m.items) ? m.items.filter((i) => !itemsToDelete.has(i.id)) : [],
+            }))
+        );
+        
+        // Limpa os conjuntos de deleção pendentes após aplicar
+        pendingDeletionsRef.current.items.clear();
+        pendingDeletionsRef.current.modules.clear();
+      }
+    }
+    
+    // Aguardar um ciclo de event loop para garantir que o estado foi atualizado antes de prosseguir
+    await new Promise(resolve => setTimeout(resolve, 0));
+    
+    try {
+      // Detectar items deletados comparando com o estado original
+      const actualDeletedItems = new Set();
+      const actualDeletedModules = new Set();
+
+      // Extrair IDs dos items e módulos do estado original (última vez que foi salvo)
       const originalItemIds = new Set();
       const originalModuleIds = new Set();
-      const currentItemIds = new Set();
-      const currentModuleIds = new Set();
-
+      
       original.forEach((mod) => {
         originalModuleIds.add(mod.id);
-        mod.items.forEach((i) => originalItemIds.add(i.id));
+        if (mod.items && Array.isArray(mod.items)) {
+          mod.items.forEach((i) => originalItemIds.add(i.id));
+        }
       });
 
+      // Extrair IDs do estado atual (UI)
+      const currentItemIds = new Set();
+      const currentModuleIds = new Set();
+      
       modules.forEach((mod) => {
         currentModuleIds.add(mod.id);
-        mod.items.forEach((i) => currentItemIds.add(i.id));
+        if (mod.items && Array.isArray(mod.items)) {
+          mod.items.forEach((i) => currentItemIds.add(i.id));
+        }
       });
 
-      // Detectar items que estavam no original mas não estão no estado atual (foram deletados)
+      // Detectar items que estavam no original mas não estão agora = foram deletados
       originalItemIds.forEach((id) => {
         if (!currentItemIds.has(id) && !id.split("-")[0].startsWith("new")) {
           actualDeletedItems.add(id);
         }
       });
 
-      // Módulos que estavam no original mas não estão agora = foram deletados
+      // Detectar módulos que estavam no original mas não estão agora = foram deletados
       originalModuleIds.forEach((id) => {
         if (!currentModuleIds.has(id) && !id.split("-")[0].startsWith("new")) {
           actualDeletedModules.add(id);
         }
       });
 
+      // Adiciona os items/módulos confirmados para deleção (após flush) aos conjuntos de deleção final
+      confirmedDeletionsRef.current.items.forEach(id => actualDeletedItems.add(id));
+      confirmedDeletionsRef.current.modules.forEach(id => actualDeletedModules.add(id));
+
+      console.log("Confirmed deletion fallback items:", Array.from(confirmedDeletionsRef.current.items));
+      console.log("Confirmed deletion fallback modules:", Array.from(confirmedDeletionsRef.current.modules));
+      console.log("Final delete items:", Array.from(actualDeletedItems));
+      console.log("Final delete modules:", Array.from(actualDeletedModules));
+
       const insert = await axios.post(endpoints.course.module, {
         data: modules.map((m) => ({
           ...m,
           id_course: course.id,
-          items: m.items.map((i) => ({ ...i, id_course_module: m.id })),
+          items: m.items && Array.isArray(m.items) ? m.items.map((i) => ({ ...i, id_course_module: m.id })) : [],
         })),
         deleted: { items: Array.from(actualDeletedItems), modules: Array.from(actualDeletedModules) },
       });
@@ -395,7 +456,7 @@ export default function Constructor({ course }) {
           items: modules.map((m) => ({
             ...m,
             id_course: course.id,
-            items: m.items.map((i) => ({ ...i, id_course_module: m.id })),
+            items: m.items && Array.isArray(m.items) ? m.items.map((i) => ({ ...i, id_course_module: m.id })) : [],
           })),
           name: course.name,
           deleted: { items: Array.from(actualDeletedItems), modules: Array.from(actualDeletedModules) },
@@ -410,6 +471,16 @@ export default function Constructor({ course }) {
       // Limpa os estados de exclusão pendentes após salvar
       setDeletingItems(new Set());
       setDeletingModules(new Set());
+      historyPushedRef.current = false;
+      pendingDeletionsRef.current.items.clear();
+      pendingDeletionsRef.current.modules.clear();
+      confirmedDeletionsRef.current.items.clear();
+      confirmedDeletionsRef.current.modules.clear();
+      
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
       
       // Após salvar, começamos uma nova sessão sem histórico prévio
       setHistory([]);
@@ -425,34 +496,129 @@ export default function Constructor({ course }) {
   }
 
   function cancelPendingDeletes() {
-    timersRef.current.items.forEach((t) => clearTimeout(t));
-    timersRef.current.mods.forEach((t) => clearTimeout(t));
-    timersRef.current.items.clear();
-    timersRef.current.mods.clear();
+    timersRef.current.forEach((t) => clearTimeout(t));
+    timersRef.current.clear();
+    
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    
+    pendingDeletionsRef.current.items.clear();
+    pendingDeletionsRef.current.modules.clear();
+    confirmedDeletionsRef.current.items.clear();
+    confirmedDeletionsRef.current.modules.clear();
+    
+    // Resetar o flag de histórico para permitir novas deleções
+    historyPushedRef.current = false;
+    
     setDeletingItems(new Set());
     setDeletingModules(new Set());
   }
 
-  function deleteTopic(moduleId, itemId) {
-    console.log(moduleId, itemId);
-    pushHistory(modules);
-    setDeletingItems((s) => new Set(s).add(itemId));
-    const t = setTimeout(() => {
-      setModules((prev) => prev.map((m) => (m?.id === moduleId ? { ...m, items: m.items.filter((i) => i?.id !== itemId) } : m)));
-
-      timersRef.current.items.delete(itemId);
+  function flushPendingDeletions() {
+    const itemsToDelete = new Set(pendingDeletionsRef.current.items);
+    const modulesToDelete = new Set(pendingDeletionsRef.current.modules);
+    
+    if (itemsToDelete.size === 0 && modulesToDelete.size === 0) {
+      return;
+    }
+        
+    // Marca os items/módulos como confirmados para deleção
+    itemsToDelete.forEach(id => confirmedDeletionsRef.current.items.add(id));
+    modulesToDelete.forEach(id => confirmedDeletionsRef.current.modules.add(id));
+        
+    // Reinicia os conjuntos de deleção pendentes após agendar limpeza
+    pendingDeletionsRef.current.items.clear();
+    pendingDeletionsRef.current.modules.clear();
+    flushTimerRef.current = null;
+    
+    // Schedule cleanup timer: after animation completes, remove from state AND animation sets
+    const cleanupTimer = setTimeout(() => {
+      
+      // Remove from animation state
+      setDeletingItems((s) => {
+        const newSet = new Set(s);
+        itemsToDelete.forEach(id => newSet.delete(id));
+        return newSet;
+      });
+      
+      setDeletingModules((s) => {
+        const newSet = new Set(s);
+        modulesToDelete.forEach(id => newSet.delete(id));
+        return newSet;
+      });
+      
+      setModules((prev) => {
+        const result = prev
+          .filter((m) => !modulesToDelete.has(m.id))
+          .map((m) => ({
+            ...m,
+            items: m.items && Array.isArray(m.items) ? m.items.filter((i) => !itemsToDelete.has(i.id)) : [],
+          }));
+        
+        console.log("State updated - modules count:", result.length);
+        result.forEach(m => {
+          const itemCount = m.items && Array.isArray(m.items) ? m.items.length : 0;
+          console.log(`  Module ${m.id}: ${itemCount} items`);
+        });
+        
+        return result;
+      });
+      
+      timersRef.current.delete('batch-cleanup');
     }, ANIM_MS);
-    timersRef.current.items.set(itemId, t);
+    
+    timersRef.current.set('batch-cleanup', cleanupTimer);
+  }
+
+  function deleteTopic(moduleId, itemId) {
+    console.log("Delete item:", itemId, "from module:", moduleId);
+    
+    if (!historyPushedRef.current) {
+      pushHistory(modules);
+      historyPushedRef.current = true;
+    }
+    
+    pendingDeletionsRef.current.items.add(itemId);
+    console.log("Pending items for deletion:", Array.from(pendingDeletionsRef.current.items));
+    
+    // Exibir animação visualmente
+    setDeletingItems((s) => new Set(s).add(itemId));
+    
+    // Agendar flush usando microtask para agrupar todas as deleções neste loop de eventos
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+    }
+    
+    flushTimerRef.current = setTimeout(() => {
+      flushPendingDeletions();
+      // Resetar o flag de histórico após o flush
+      historyPushedRef.current = false;
+    }, 0);
   }
 
   function deleteModule(moduleId) {
-    pushHistory(modules);
+    console.log("Delete module:", moduleId);
+    
+    if (!historyPushedRef.current) {
+      pushHistory(modules);
+      historyPushedRef.current = true;
+    }
+    
+    pendingDeletionsRef.current.modules.add(moduleId);
+    console.log("Pending modules for deletion:", Array.from(pendingDeletionsRef.current.modules));
+    
     setDeletingModules((s) => new Set(s).add(moduleId));
-    const t = setTimeout(() => {
-      setModules((prev) => prev.filter((m) => m.id !== moduleId));
-      timersRef.current.mods.delete(moduleId);
-    }, ANIM_MS);
-    timersRef.current.mods.set(moduleId, t);
+    
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+    }
+    
+    flushTimerRef.current = setTimeout(() => {
+      flushPendingDeletions();
+      historyPushedRef.current = false;
+    }, 0);
   }
 
   /* ---------- Adicionar / Editar ---------- */
@@ -516,7 +682,7 @@ export default function Constructor({ course }) {
 
   function moveTopic(modId, itemId, direction) {
     const mod = modules.find((m) => m.id === modId);
-    if (!mod) return;
+    if (!mod || !mod.items || !Array.isArray(mod.items)) return;
     const idx = mod.items.findIndex((i) => i.id === itemId);
     if (idx < 0) return;
     const delta = direction === "up" ? -1 : 1;
@@ -535,7 +701,7 @@ export default function Constructor({ course }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const moduleIds = useMemo(() => modules.map((m) => m.id), [modules]);
 
-  const findModuleByTopic = (id) => modules.find((m) => m.items.some((i) => i.id === id));
+  const findModuleByTopic = (id) => modules.find((m) => m.items && Array.isArray(m.items) && m.items.some((i) => i.id === id));
 
   function moduleIdForOver(overId) {
     if (!overId) return null;
@@ -627,7 +793,7 @@ export default function Constructor({ course }) {
 
       const fromMod = modules.find((m) => m.id === fromModId);
       const toMod = modules.find((m) => m.id === toModId);
-      if (!fromMod || !toMod) return;
+      if (!fromMod || !toMod || !fromMod.items || !Array.isArray(fromMod.items) || !toMod.items || !Array.isArray(toMod.items)) return;
 
       const fromIndex = fromMod.items.findIndex((i) => i.id === a);
       let toIndex = isTopicId(o) ? toMod.items.findIndex((i) => i.id === o) : toMod.items.length;
@@ -645,12 +811,12 @@ export default function Constructor({ course }) {
 
       setModules((prev) =>
         prev.map((m) => {
-          if (m.id === fromMod.id) {
+          if (m.id === fromMod.id && m.items && Array.isArray(m.items)) {
             const arr = [...m.items];
             arr.splice(fromIndex, 1);
             return { ...m, items: arr };
           }
-          if (m.id === toMod.id) {
+          if (m.id === toMod.id && m.items && Array.isArray(m.items)) {
             const arr = [...m.items];
             arr.splice(toIndex, 0, moving);
             return { ...m, items: arr };
@@ -662,7 +828,7 @@ export default function Constructor({ course }) {
   }
 
   /* Overlay data */
-  const activeTopic = isTopicId(activeId) && findModuleByTopic(activeId)?.items.find((i) => i.id === activeId);
+  const activeTopic = isTopicId(activeId) && findModuleByTopic(activeId)?.items && Array.isArray(findModuleByTopic(activeId).items) ? findModuleByTopic(activeId).items.find((i) => i.id === activeId) : null;
   const activeModule = isModuleId(activeId) && modules.find((m) => m.id === activeId);
 
   return (
@@ -714,8 +880,8 @@ export default function Constructor({ course }) {
                     {/* ZONA DROPPABLE DO MÓDULO (aceita drop em área vazia) */}
                     <ModuleDropArea id={mod.id}>
                       {/* TÓPICOS/TESTES: lista VERTICAL */}
-                      <SortableContext items={mod.items.map((i) => i?.id)} strategy={verticalListSortingStrategy}>
-                        {mod.items.length === 0 ? (
+                      <SortableContext items={(mod.items && Array.isArray(mod.items)) ? mod.items.map((i) => i?.id) : []} strategy={verticalListSortingStrategy}>
+                        {!mod.items || mod.items.length === 0 ? (
                           <div className="text-gray-400 text-sm p-3 border border-dashed rounded bg-gray-50">Solta tópicos/testes aqui</div>
                         ) : (
                           mod.items.map((item, itemIndex) => (

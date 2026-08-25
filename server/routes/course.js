@@ -437,9 +437,26 @@ router.post("/module", async (req, res, next) => {
 		try {
 			await transaction();
 			let data = req.body.data;
-			console.log(req.body.deleted);
-			let deletedItems = req.body.deleted.items;
-			let deletedModules = req.body.deleted.modules;
+			
+			// console.log("\n========== DELETE REQUEST ==========");
+			// console.log("FULL deleted object:", JSON.stringify(req.body.deleted, null, 2));
+			// console.log("deleted.items type:", typeof req.body.deleted.items, "is array?", Array.isArray(req.body.deleted.items));
+			// console.log("deleted.items raw:", req.body.deleted.items);
+			// console.log("deleted.items length:", req.body.deleted.items?.length);
+			// console.log("deleted.modules type:", typeof req.body.deleted.modules, "is array?", Array.isArray(req.body.deleted.modules));
+			// console.log("deleted.modules raw:", req.body.deleted.modules);
+			// console.log("====================================\n");
+			
+			let deletedItems = req.body.deleted.items || [];
+			let deletedModules = req.body.deleted.modules || [];
+			
+			// Parse de IDs dos módulos deletados para verificar ao atualizar os itens
+			const deletedModuleIds = new Set(
+				deletedModules
+					.map((_i) => parseInt(_i.split("-")[1]))
+					.filter((_id) => !isNaN(_id))
+			);
+			// console.log("Deleted module IDs set:", deletedModuleIds);
 
 			for (let i = 0; i < data.length; i++) {
 				const aux = data[i];
@@ -462,8 +479,9 @@ router.post("/module", async (req, res, next) => {
 						? insertedModule.insertId
 						: parseInt(aux.id.split("-")[1]);
 
+				let newItems = [];
+				
 				if (aux.items && aux.items.length > 0) {
-					let newItems = [];
 					for (let z = 0; z < aux.items.length; z++) {
 						// Verifica se o item é um novo teste ou tópico
 						const isNewTest = aux.items[z].id.split("-")[0] === "newtest";
@@ -500,53 +518,96 @@ router.post("/module", async (req, res, next) => {
 							type: aux.items[z].type,
 						});
 					}
-
-					await query("UPDATE course_module SET items = ? WHERE id = ?", [
-						JSON.stringify(newItems),
-						aux.id,
-					]);
 				}
+
+				// Atualiza os itens do módulo, mas verifica se o módulo foi deletado antes de atualizar
+				let itemsValue;
+				if (deletedModuleIds.has(aux.id)) {
+					itemsValue = null;
+					// console.log(`Module ${aux.id} is deleted → setting items to NULL`);
+				} else {
+					itemsValue = newItems.length > 0 ? JSON.stringify(newItems) : JSON.stringify([]);
+					// console.log(`Updating module ${aux.id} items to:`, newItems);
+				}
+				
+				await query("UPDATE course_module SET items = ? WHERE id = ?", [
+					itemsValue,
+					aux.id,
+				]);
 			}
 
 			if (deletedItems.length > 0) {
+				// console.log("\n PROCESSING DELETED ITEMS");
+				// console.log("Raw deletedItems:", deletedItems);
+				
 				let deletedItemsId = deletedItems
 					.filter((_t) => _t.includes("topic"))
-					.map((_i) => parseInt(_i.split("-")[1]))
-					.filter((_id) => !isNaN(_id)); // Apenas processa IDs válidos da BD
+					.map((_i) => {
+						const id = parseInt(_i.split("-")[1]);
+						// console.log(`  Topic: "${_i}" → ID: ${id}`);
+						return id;
+					})
+					.filter((_id) => !isNaN(_id));
+				
+				// console.log("Parsed topic IDs:", deletedItemsId);
+				
 				if (deletedItemsId.length > 0) {
-					await query(
+					// console.log(`Deleting ${deletedItemsId.length} topics`);
+					const result = await query(
 						"UPDATE course_topic SET is_deleted = 1 WHERE id IN (?)",
-						deletedItemsId,
+						[deletedItemsId]
 					);
+					// console.log("Topics deleted:", result.affectedRows);
 				}
 
 				let deletedTestsId = deletedItems
 					.filter((_t) => _t.includes("test"))
-					.map((_i) => parseInt(_i.split("-")[1]))
+					.map((_i) => {
+						const id = parseInt(_i.split("-")[1]);
+						// console.log(`  Test: "${_i}" → ID: ${id}`);
+						return id;
+					})
 					.filter((_id) => !isNaN(_id));
+				
+				// console.log("Parsed test IDs:", deletedTestsId);
+				
 				if (deletedTestsId.length > 0) {
-					await query(
+					// console.log(`Deleting ${deletedTestsId.length} tests`);
+					const result = await query(
 						"UPDATE course_test SET is_deleted = 1 WHERE id IN (?)",
-						deletedTestsId,
+						[deletedTestsId]
 					);
+					// console.log("Tests deleted:", result.affectedRows);
 				}
 			}
 
 			if (deletedModules.length > 0) {
+				// console.log("\n📋 PROCESSING DELETED MODULES");
+				// console.log("Raw deletedModules:", deletedModules);
+				
 				let deletedModulesId = deletedModules
-					.map((_i) => parseInt(_i.split("-")[1]))
+					.map((_i) => {
+						const id = parseInt(_i.split("-")[1]);
+						// console.log(`  Module: "${_i}" → ID: ${id}`);
+						return id;
+					})
 					.filter((_id) => !isNaN(_id));
-				console.log(deletedModulesId);
+				
+				// console.log("Parsed module IDs:", deletedModulesId);
+				
 				if (deletedModulesId.length > 0) {
-					await query(
+					// console.log(`Deleting ${deletedModulesId.length} modules`);
+					const result = await query(
 						"UPDATE course_module SET is_deleted = 1 WHERE id IN (?)",
-						deletedModulesId,
+						[deletedModulesId]
 					);
+					// console.log("Modules deleted:", result.affectedRows);
 				}
 			}
 
 			await commit();
 			conn.release();
+			// console.log("✅ TRANSACTION COMMITTED SUCCESSFULLY");
 			res.send(data);
 		} catch (err) {
 			console.log(err);
