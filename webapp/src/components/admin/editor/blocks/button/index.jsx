@@ -24,9 +24,15 @@ const Button = {
     variant: "primary",
   },
   render: ({ href, variant, label, puck }) => {
+    const handleClick = () => {
+      if (!puck.isEditing && href && href !== "#") {
+        window.open(href, "_blank"); // Para abrir o link em uma nova aba
+      }
+    };
+
     return (
       <div>
-        <_Button href={puck.isEditing ? "#" : href} variant={variant} size="large" tabIndex={puck.isEditing ? -1 : undefined}>
+        <_Button onClick={handleClick} variant={variant} size="large" tabIndex={puck.isEditing ? -1 : undefined}>
           {label}
         </_Button>
       </div>
