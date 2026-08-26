@@ -52,6 +52,7 @@ const FlexInternal = {
   },
   defaultProps: {
     justifyContent: "start",
+    alignItems: "start",
     direction: "row",
     gap: 24,
     wrap: "wrap",
@@ -62,15 +63,17 @@ const FlexInternal = {
   },
   render: ({ justifyContent, alignItems, direction, gap, wrap, items: Items }) => {
     return (
-      <Section style={{ height: "100%" }}>
+      <Section style={{ height: "100%", display: "flex" }}>
         <Items
           className={getClassName()}
           style={{
+            display: "flex",
             justifyContent,
             alignItems,
             flexDirection: direction,
             gap,
             flexWrap: wrap,
+            width: "100%",
           }}
           disallow={["Hero", "Stats"]}
         />
