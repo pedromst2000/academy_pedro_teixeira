@@ -50,10 +50,11 @@ export default function Course() {
 				setData(res.data.courses);
 				setProducts(res.data.products);
 				prepareData(res.data.courses);
-				setIsLoading(false);
 			})
 			.catch((err) => {
 				console.log(err);
+			})
+			.finally(() => {
 				setIsLoading(false);
 			});
 	}
@@ -147,7 +148,7 @@ export default function Course() {
 
 	return (
 		<div className="p-2">
-			<Create open={isOpenCreate} close={closeAction} products={products} />
+			<Create open={isOpenCreate} close={closeAction} products={products} courses={data} />
 			<Update
 				data={selectedData}
 				open={isOpenUpdate}
@@ -174,6 +175,7 @@ export default function Course() {
 					<Button
 						size="large"
 						onClick={getData}
+						loading={isLoading}
 						icon={<RxReload />}
 						className="mr-2"
 					/>

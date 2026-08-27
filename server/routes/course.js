@@ -637,7 +637,7 @@ router.post("/duplicate", async (req, res, next) => {
 			course.internal_name =
 				data.new_internal_name || course.internal_name + " (copy)";
 			course.id_lang = data.id_lang || course.id_lang;
-			course.id_certificate = null;
+			course.id_course_certificate = null;
 			course.status = "draft";
 			const insertedCourse = await query("INSERT INTO course SET ?", course);
 

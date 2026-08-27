@@ -1,26 +1,18 @@
 import { useContext, useState } from "react";
 import {
 	Button,
-	Col,
-	Row,
 	Modal,
-	Drawer,
 	Form,
 	Input,
 	Select,
-	DatePicker,
+	message,
 } from "antd";
-import axios from "axios";
 
 import Media from "../media/media";
 import { Context } from "../../../utils/context";
-import endpoints from "../../../utils/endpoints";
-import config from "../../../utils/config";
-import { AiOutlineFile } from "react-icons/ai";
-import i18n from "../../../utils/i18n";
 import { useNavigate } from "react-router-dom";
 
-export default function Create({ open, close, products }) {
+export default function Create({ open, close, products, courses }) {
 	const { create, t, selectedLanguage } = useContext(Context);
 	const [isButtonLoading, setIsButtonLoading] = useState(false);
 	const [mediaKey, setMediaKey] = useState(null);
@@ -29,6 +21,23 @@ export default function Create({ open, close, products }) {
 	const [form] = Form.useForm();
 
 	const navigate = useNavigate();
+
+	const validateInternalName = async (_, value) => {
+		if (!value || !courses || courses.length === 0) {
+			return Promise.resolve();
+		}
+
+		const courseExists = courses.some((course) => {
+			if (!course.internal_name) return false;
+			return course.internal_name.toLowerCase().trim() === value.toLowerCase().trim();
+		});
+
+		if (courseExists) {
+			return Promise.reject(new Error(t("A course with this internal name already exists")));
+		}
+
+		return Promise.resolve();
+	};
 
 	function onClose() {
 		form.resetFields();
@@ -42,11 +51,15 @@ export default function Create({ open, close, products }) {
 				data: { ...values, id_lang: selectedLanguage.id },
 				table: "course",
 			});
-			navigate(`/admin/courses/${res.data.insertId}`);
-			setIsButtonLoading(false);
-			close(true);
+
+			// Delay na navegação para permitir que a mensagem seja exibida antes de redirecionar
+			setTimeout(() => {
+				navigate(`/admin/courses/${res.data.insertId}`);
+				onClose();
+			}, 1500);
 		} catch (err) {
 			console.log(err);
+			message.error(err.response?.data?.message || t("Error creating course"));
 			setIsButtonLoading(false);
 		}
 	}
@@ -70,11 +83,11 @@ export default function Create({ open, close, products }) {
 			key="modal-logout"
 			width={500}
 			style={{ top: 20 }}
-			onCancel={close}
+			onCancel={onClose}
 			open={open}
 			maskClosable={false}
 			footer={[
-				<Button onClick={close}>{t("Cancel")}</Button>,
+				<Button onClick={onClose}>{t("Cancel")}</Button>,
 				<Button type="primary" loading={isButtonLoading} onClick={form.submit}>
 					{t("Create")}
 				</Button>,
@@ -96,7 +109,10 @@ export default function Create({ open, close, products }) {
 				<Form.Item
 					name="internal_name"
 					label={t("Internal name")}
-					rules={[{ required: true }]}
+					rules={[
+						{ required: true },
+						{ validator: validateInternalName, validateTrigger: ["onChange", "onBlur"] },
+					]}
 				>
 					<Input size="large" placeholder={t("Enter internal course name")} />
 				</Form.Item>
@@ -114,7 +130,6 @@ export default function Create({ open, close, products }) {
 				<Form.Item
 					name="status"
 					label={t("Status")}
-					rules={[{ required: true }]}
 				>
 					<Select
 						size="large"

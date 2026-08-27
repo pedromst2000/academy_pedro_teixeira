@@ -69,83 +69,85 @@ export default function Update({ data, open, close, products }) {
 	}
 
 	return (
-		<Modal
-			key="modal-logout"
-			width={500}
-			style={{ top: 20 }}
-			onCancel={close}
-			open={open}
-			maskClosable={false}
-			footer={[
-				<Button onClick={close}>{t("Cancel")}</Button>,
-				<Button type="primary" loading={isButtonLoading} onClick={form.submit}>
-					{t("Save")}
-				</Button>,
-			]}
-		>
-			<Media mediaKey={mediaKey} open={isOpenMedia} close={closeMedia} />
-			<p className="text-[16px] font-bold mb-4">{t("Update Course")}</p>
-			<Form
-				form={form}
-				onFinish={submit}
-				layout="vertical"
-				validateMessages={{
-					required: "Este campo é obrigatório!",
-				}}
-			>
-				<Form.Item name="id" hidden>
-					<Input />
-				</Form.Item>
-				<Form.Item name="name" label={t("Name")} rules={[{ required: true }]}>
-					<Input size="large" placeholder={t("Enter course name")} />
-				</Form.Item>
-				<Form.Item
-					name="internal_name"
-					label={t("Internal name")}
-					rules={[{ required: true }]}
-				>
-					<Input size="large" placeholder={t("Enter internal course name")} />
-				</Form.Item>
-				<Form.Item
-					name="status"
-					label={t("Status")}
-					rules={[{ required: true }]}
-				>
-					<Select
-						size="large"
-						className="w-full"
-						placeholder="Selecione..."
-						showSearch={{
-							optionFilterProp: ["label"],
-						}}
-						options={[
-							{
-								label: "Draft",
-								value: "draft",
-							},
-							{
-								label: "Published",
-								value: "published",
-							},
-						]}
-					/>
-				</Form.Item>
-				<Form.Item
-					name="id_product"
-					label={t("Product")}
-					rules={[{ required: true }]}
-				>
-					<Select
-						size="large"
-						className="w-full"
-						placeholder="Selecione..."
-						showSearch={{
-							optionFilterProp: ["label"],
-						}}
-						options={products?.map((p) => ({ label: p.name, value: p.id }))}
-					/>
-				</Form.Item>
-			</Form>
-		</Modal>
-	);
+    <Modal
+      key="modal-logout"
+      width={500}
+      style={{ top: 20 }}
+      onCancel={close}
+      open={open}
+      maskClosable={false}
+      footer={[
+        <Button onClick={close}>{t("Cancel")}</Button>,
+        <Button type="primary" loading={isButtonLoading} onClick={form.submit}>
+          {t("Save")}
+        </Button>,
+      ]}
+    >
+      <Media mediaKey={mediaKey} open={isOpenMedia} close={closeMedia} />
+      <p className="text-[16px] font-bold mb-4">{t("Update Course")}</p>
+      <Form
+        form={form}
+        onFinish={submit}
+        layout="vertical"
+        validateMessages={{
+          required: "Este campo é obrigatório!",
+        }}
+      >
+        <Form.Item name="id" hidden>
+          <Input />
+        </Form.Item>
+        <Form.Item name="name" label={t("Name")} rules={[{ required: true }]}>
+          <Input size="large" placeholder={t("Enter course name")} />
+        </Form.Item>
+        <Form.Item
+          name="internal_name"
+          label={t("Internal name")}
+          rules={[{ required: true }]}
+        >
+          <Input size="large" placeholder={t("Enter internal course name")} />
+        </Form.Item>
+        <Form.Item
+          name="status"
+          label={t("Status")}
+          rules={[{ required: true }]}
+        >
+          <Select
+            size="large"
+            className="w-full"
+            placeholder="Selecione..."
+            showSearch={{
+              optionFilterProp: ["label"],
+            }}
+            options={[
+              {
+                label: "Draft",
+                value: "draft",
+              },
+              {
+                label: "Published",
+                value: "published",
+              },
+            ]}
+          />
+        </Form.Item>
+        <Form.Item
+          name="id_product"
+          label={t("Product")}
+          rules={[{ required: true }]}
+        >
+          <Select
+            size="large"
+            className="w-full"
+            placeholder="Selecione..."
+            showSearch={{
+              optionFilterProp: ["label"],
+            }}
+            options={products
+              .filter((p) => p.is_deleted === 0)
+              .map((p) => ({ label: p.name, value: p.id }))}
+          />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
 }
