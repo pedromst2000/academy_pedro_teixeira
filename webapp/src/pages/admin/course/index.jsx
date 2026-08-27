@@ -187,6 +187,7 @@ export default function Course() {
 			<Table
 				dataSource={tableData}
 				loading={isLoading}
+				pagination={{ pageSize: 10 }}
 				columns={[
 					{
 						title: t("Name"),

@@ -106,10 +106,10 @@ router.get("/readById", async (req, res) => {
 	const query = util.promisify(db.query).bind(db);
 	try {
 		const rows = await query(
-			"SELECT * FROM course WHERE id = ? AND is_deleted = 0; SELECT course_module. * FROM course_module WHERE id_course = ? AND is_deleted = 0; " +
+			"SELECT * FROM course WHERE id = ?; SELECT course_module.* FROM course_module WHERE id_course = ? AND is_deleted = 0; " +
 				"SELECT course_topic.* FROM course_topic LEFT JOIN course_module ON course_topic.id_course_module = course_module.id WHERE course_module.id_course = ? " +
 				"AND course_topic.is_deleted = 0 AND course_module.is_deleted = 0; " +
-				"SELECT course_test.* FROM course_test LEFT JOIN course_module ON course_test.id_course_module = course_module.id WHERE course_module.id_course = ?" +
+				"SELECT course_test.* FROM course_test LEFT JOIN course_module ON course_test.id_course_module = course_module.id WHERE course_module.id_course = ? " +
 				"AND course_test.is_deleted = 0 AND course_module.is_deleted = 0; ",
 			[req.query.id, req.query.id, req.query.id, req.query.id],
 		);
