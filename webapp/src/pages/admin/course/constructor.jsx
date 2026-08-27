@@ -263,7 +263,7 @@ function SortableModule({
 
 export default function Constructor({ course }) {
   const { createLog, user, selectedLanguage } = useContext(Context);
-  const [isUnsaved, setIsUnsaved] = useState(true);
+  const [isUnsaved, setIsUnsaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [original, setOriginal] = useState([]);
   const [modules, setModules] = useState([]);
@@ -644,6 +644,11 @@ export default function Constructor({ course }) {
   }
 
   /* ---------- Adicionar / Editar ---------- */
+  function addModule() {
+    pushHistory(modules);
+    setModules((p) => [...p, { id: makeId("newmod-"), title: "Novo módulo", items: [] }]);
+  }
+
   function addTopic(moduleId) {
     pushHistory(modules);
     setModules((prev) =>
@@ -916,7 +921,7 @@ export default function Constructor({ course }) {
   return (
     <div>
       <Space wrap>
-        <Button onClick={() => setModules((p) => [...p, { id: makeId("newmod-"), title: "Novo módulo", items: [] }])}>+ Novo módulo</Button>
+        <Button onClick={addModule}>+ Novo módulo</Button>
         <Button onClick={undo} disabled={!history.length || isSaving}>
           Undo
         </Button>
