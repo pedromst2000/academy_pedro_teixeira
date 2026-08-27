@@ -1,26 +1,17 @@
 import { useContext, useEffect, useState } from "react";
 import {
 	Button,
-	Col,
-	Row,
 	Modal,
-	Drawer,
 	Form,
 	Input,
 	Select,
-	DatePicker,
 } from "antd";
-import axios from "axios";
 
 import Media from "../media/media";
 import { Context } from "../../../utils/context";
-import endpoints from "../../../utils/endpoints";
-import config from "../../../utils/config";
-import { AiOutlineFile } from "react-icons/ai";
-import i18n from "../../../utils/i18n";
 import { useNavigate } from "react-router-dom";
 
-export default function Update({ data, open, close, products }) {
+export default function Update({ data, open, close, products, validateInternalName }) {
 	const { update, t, selectedLanguage } = useContext(Context);
 	const [isButtonLoading, setIsButtonLoading] = useState(false);
 	const [mediaKey, setMediaKey] = useState(null);
@@ -102,7 +93,10 @@ export default function Update({ data, open, close, products }) {
         <Form.Item
           name="internal_name"
           label={t("Internal name")}
-          rules={[{ required: true }]}
+          rules={[
+            { required: true },
+            { validator: (_, value) => validateInternalName(_, value, data?.id), validateTrigger: ["onChange", "onBlur"] },
+          ]}
         >
           <Input size="large" placeholder={t("Enter internal course name")} />
         </Form.Item>

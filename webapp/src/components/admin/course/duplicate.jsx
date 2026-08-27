@@ -20,7 +20,7 @@ import { AiOutlineFile } from "react-icons/ai";
 import i18n from "../../../utils/i18n";
 import { useNavigate } from "react-router-dom";
 
-export default function Duplicate({ data, open, close, submit, products }) {
+export default function Duplicate({ data, open, close, submit, products, validateInternalName }) {
 	const { create, t, selectedLanguage, languages } = useContext(Context);
 	const [isButtonLoading, setIsButtonLoading] = useState(false);
 	const [mediaKey, setMediaKey] = useState(null);
@@ -69,11 +69,11 @@ export default function Duplicate({ data, open, close, submit, products }) {
 			key="modal-logout"
 			width={500}
 			style={{ top: 20 }}
-			onCancel={close}
+			onCancel={onClose}
 			open={open}
 			maskClosable={false}
 			footer={[
-				<Button onClick={close}>{t("Cancel")}</Button>,
+				<Button onClick={onClose}>{t("Cancel")}</Button>,
 				<Button type="primary" loading={isButtonLoading} onClick={form.submit}>
 					{t("Create")}
 				</Button>,
@@ -103,7 +103,10 @@ export default function Duplicate({ data, open, close, submit, products }) {
 				<Form.Item
 					name="internal_name"
 					label={t("New internal name")}
-					rules={[{ required: true }]}
+					rules={[
+						{ required: true },
+						{ validator: validateInternalName, validateTrigger: ["onChange", "onBlur"] },
+					]}
 				>
 					<Input size="large" placeholder={t("Enter internal course name")} />
 				</Form.Item>

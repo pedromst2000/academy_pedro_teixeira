@@ -146,14 +146,34 @@ export default function Course() {
 		setIsOpenDelete(false);
 	}
 
+	const validateInternalName = async (_, value, excludeId = null) => {
+		if (!value || !data || data.length === 0) {
+			return Promise.resolve();
+		}
+
+		const courseExists = data.some((course) => {
+			if (!course.internal_name) return false;
+			// Exclude current course being edited from duplicate check
+			if (excludeId && course.id === excludeId) return false;
+			return course.internal_name.toLowerCase().trim() === value.toLowerCase().trim();
+		});
+
+		if (courseExists) {
+			return Promise.reject(new Error(t("A course with this internal name already exists")));
+		}
+
+		return Promise.resolve();
+	};
+
 	return (
 		<div className="p-2">
-			<Create open={isOpenCreate} close={closeAction} products={products} courses={data} />
+			<Create open={isOpenCreate} close={closeAction} products={products} courses={data} validateInternalName={validateInternalName} />
 			<Update
 				data={selectedData}
 				open={isOpenUpdate}
 				close={closeAction}
 				products={products}
+				validateInternalName={validateInternalName}
 			/>
 			<Delete
 				data={selectedData}
@@ -166,6 +186,7 @@ export default function Course() {
 				open={isOpenDuplicate}
 				close={closeAction}
 				products={products}
+				validateInternalName={validateInternalName}
 			/>
 			<div className="flex justify-between items-center mb-4">
 				<div>

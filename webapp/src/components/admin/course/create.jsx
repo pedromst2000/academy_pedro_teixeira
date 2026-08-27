@@ -12,7 +12,7 @@ import Media from "../media/media";
 import { Context } from "../../../utils/context";
 import { useNavigate } from "react-router-dom";
 
-export default function Create({ open, close, products, courses }) {
+export default function Create({ open, close, products, courses, validateInternalName }) {
 	const { create, t, selectedLanguage } = useContext(Context);
 	const [isButtonLoading, setIsButtonLoading] = useState(false);
 	const [mediaKey, setMediaKey] = useState(null);
@@ -21,23 +21,6 @@ export default function Create({ open, close, products, courses }) {
 	const [form] = Form.useForm();
 
 	const navigate = useNavigate();
-
-	const validateInternalName = async (_, value) => {
-		if (!value || !courses || courses.length === 0) {
-			return Promise.resolve();
-		}
-
-		const courseExists = courses.some((course) => {
-			if (!course.internal_name) return false;
-			return course.internal_name.toLowerCase().trim() === value.toLowerCase().trim();
-		});
-
-		if (courseExists) {
-			return Promise.reject(new Error(t("A course with this internal name already exists")));
-		}
-
-		return Promise.resolve();
-	};
 
 	function onClose() {
 		form.resetFields();
