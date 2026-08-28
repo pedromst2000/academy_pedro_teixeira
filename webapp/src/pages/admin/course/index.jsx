@@ -43,30 +43,24 @@ export default function Course() {
 
 	function getData() {
 		setIsLoading(true);
+		// Buscar todos os cursos (incluindo deletados) para a tabela admin
 		axios
-			.get(endpoints.course.readByLang, {
-				params: { id_lang: selectedLanguage.id },
-			})
+			.get(endpoints.course.read)
 			.then((res) => {
-				setData(res.data.courses);
+				// Filtrar apenas os cursos do idioma selecionado (incluindo deletados)
+				const languageFilteredCourses = res.data.courses.filter(
+					(course) => course.id_lang === selectedLanguage.id
+				);
+				setData(languageFilteredCourses);
 				setProducts(res.data.products);
-				prepareData(res.data.courses);
+				prepareData(languageFilteredCourses);
+				setAllCourses(res.data.courses); // Manter todos os cursos para validação
 			})
 			.catch((err) => {
 				console.log(err);
 			})
 			.finally(() => {
 				setIsLoading(false);
-			});
-
-		// Buscar todos os cursos para fins de validação
-		axios
-			.get(endpoints.course.read)
-			.then((res) => {
-				setAllCourses(res.data.courses);
-			})
-			.catch((err) => {
-				console.log(err);
 			});
 	}
 
