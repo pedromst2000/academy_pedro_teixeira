@@ -24,6 +24,7 @@ export default function Course() {
 	const { user, selectedLanguage } = useContext(Context);
 	const [isLoading, setIsLoading] = useState(true);
 	const [data, setData] = useState([]);
+	const [allCourses, setAllCourses] = useState([]);
 	const [products, setProducts] = useState([]);
 	const [tableData, setTableData] = useState([]);
 	const [selectedData, setSelectedData] = useState({});
@@ -56,6 +57,16 @@ export default function Course() {
 			})
 			.finally(() => {
 				setIsLoading(false);
+			});
+
+		// Buscar todos os cursos para fins de validação
+		axios
+			.get(endpoints.course.read)
+			.then((res) => {
+				setAllCourses(res.data.courses);
+			})
+			.catch((err) => {
+				console.log(err);
 			});
 	}
 
@@ -146,14 +157,21 @@ export default function Course() {
 		setIsOpenDelete(false);
 	}
 
-	const validateInternalName = async (_, value, excludeId = null) => {
-		if (!value || !data || data.length === 0) {
+	const validateInternalName = async (_, value, excludeId = null, languageId = null) => {
+		if (!value || (!data && !allCourses)) {
 			return Promise.resolve();
 		}
 
-		const courseExists = data.some((course) => {
+		// Usar idioma especificado ou padrão para o idioma atualmente selecionado
+		const targetLanguageId = languageId || selectedLanguage.id;
+		
+		// Filtrar cursos por idioma alvo
+		const coursesToCheck = allCourses.length > 0 ? allCourses : data;
+		const coursesByLanguage = coursesToCheck.filter(course => course.id_lang === targetLanguageId);
+
+		const courseExists = coursesByLanguage.some((course) => {
 			if (!course.internal_name) return false;
-			// Exclude current course being edited from duplicate check
+			// Excluir o curso atual sendo editado da verificação de duplicação
 			if (excludeId && course.id === excludeId) return false;
 			return course.internal_name.toLowerCase().trim() === value.toLowerCase().trim();
 		});

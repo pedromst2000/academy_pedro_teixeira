@@ -27,7 +27,7 @@ router.get("/read", async (req, res) => {
 				"WHERE course_test.is_deleted = 0 AND course_module.is_deleted = 0; " +
 				"SELECT course_user_activity.* FROM course_user_activity LEFT JOIN course ON course.id = course_user_activity.id_course " +
 				"WHERE course_user_activity.id_user = ?; SELECT * FROM product",
-			req.query.id_user,
+			[req.query.id_user],
 		);
 
 		res.send({
@@ -639,6 +639,8 @@ router.post("/duplicate", async (req, res, next) => {
 			course.id_lang = data.id_lang || course.id_lang;
 			course.id_course_certificate = null;
 			course.status = "draft";
+			course.slug = slugify(data.new_name || course.name + " (copy)", { lower: true, strict: true });
+
 			const insertedCourse = await query("INSERT INTO course SET ?", course);
 
 			let modules = await query(
@@ -649,13 +651,21 @@ router.post("/duplicate", async (req, res, next) => {
 				let module = modules[i];
 				delete module.id;
 				module.id_course = insertedCourse.insertId;
-				let moduleItems = module.items ? JSON.parse(module.items) : null;
+				
+				let moduleItems = null;
+				try {
+					moduleItems = module.items ? JSON.parse(module.items) : null;
+				} catch (parseError) {
+					console.log(`Warning: Failed to parse items for module, skipping...`, parseError.message);
+					moduleItems = null;
+				}
+				
 				delete module.items;
 				const insertedModule = await query(
 					"INSERT INTO course_module SET ?",
 					module,
 				);
-				if (moduleItems.length > 0) {
+				if (moduleItems && moduleItems.length > 0) {
 					let newItems = [];
 
 					for (let z = 0; z < moduleItems.length; z++) {
@@ -667,6 +677,12 @@ router.post("/duplicate", async (req, res, next) => {
 										"SELECT * FROM course_topic WHERE id = ?",
 										item.id,
 									);
+						
+						if (!rowItem || rowItem.length === 0) {
+							console.log(`Warning: ${item.type} with id ${item.id} not found, skipping...`);
+							continue;
+						}
+						
 						const rowItemData = rowItem[0];
 						delete rowItemData.id;
 						rowItemData.id_course_module = insertedModule.insertId;
@@ -690,7 +706,7 @@ router.post("/duplicate", async (req, res, next) => {
 
 			await commit();
 			conn.release();
-			res.send(data);
+			res.send({ insertId: insertedCourse.insertId });
 		} catch (err) {
 			console.log(err);
 			await rollback();
