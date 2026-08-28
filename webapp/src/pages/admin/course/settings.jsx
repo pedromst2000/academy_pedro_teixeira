@@ -171,7 +171,7 @@ export default function Settings({ course }) {
           </Form.Item>
 
           {/* Header Information settings + Toogle Show Info course */}
-          <div className="flex justify-between items-center">
+          {/* <div className="flex justify-between items-center">
             <div>
               <p className="text-[18px] font-bold">{t("Information")}</p>
               <p className="text-[12px] italic mb-4 text-[#666]">
@@ -196,9 +196,7 @@ export default function Settings({ course }) {
             </div>
           </div>
 
-          {/* Information course inputs */}
           <div className="grid grid-cols-3 gap-8">
-            {/* Duration Input */}
             <div>
               <p className="pb-2">Duration</p>
               <div className="grid grid-cols-2 gap-4">
@@ -225,13 +223,11 @@ export default function Settings({ course }) {
               </div>
             </div>
 
-            {/* Trainer Input */}
             <Form.Item
               name={["settings", "trainer"]}
               label={t("Trainer")}
               className="mb-0!"
             >
-              {/* Select option Trainer */}
               <Select
                 size="large"
                 className="w-full"
@@ -244,7 +240,6 @@ export default function Settings({ course }) {
               />
             </Form.Item>
 
-            {/* Video Input */}
             <Form.Item
               name={["settings", "video"]}
               label={t("Video")}
@@ -254,7 +249,7 @@ export default function Settings({ course }) {
             </Form.Item>
           </div>
 
-          <Divider />
+          <Divider /> */}
 
           <p className="text-[18px] font-bold">{t("Product")}</p>
           <p className="text-[12px] italic mb-4 text-[#666]">
