@@ -64,7 +64,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import CourseContent from "./content";
 import CourseMaterial from "./material";
-import CourseObjection from "./objection";
+import CourseObjection from "./objection/objection";
 import CourseIcon from "../../../assets/Curso.svg?react";
 import MaterialIcon from "../../../assets/Materiais.svg?react";
 import ObjectionIcon from "../../../assets/Livro-Objecoes-On.svg?react";

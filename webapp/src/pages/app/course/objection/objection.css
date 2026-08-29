@@ -1,0 +1,158 @@
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* ---------- PROSE CONTAINER ---------- */
+/* -------------------------------------- */
+
+.prose-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.prose-content :first-child {
+  margin-top: 0 !important;
+}
+
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------- HEADINGS -------------- */
+/* -------------------------------------- */
+
+.prose-content h1,
+.prose-content h2,
+.prose-content h3,
+.prose-content h4,
+.prose-content h5,
+.prose-content h6 {
+  line-height: 1.1;
+  margin-top: 2.5rem;
+  text-wrap: "pretty";
+}
+
+.prose-content h1,
+.prose-content h2 {
+  margin-top: 3.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.prose-content h1 {
+  font-size: 1.4rem;
+}
+
+.prose-content h2 {
+  font-size: 1.2rem;
+}
+
+.prose-content h3 {
+  font-size: 1.1rem;
+}
+
+.prose-content h4,
+.prose-content h5,
+.prose-content h6 {
+  font-size: 1rem;
+}
+
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* ---------- PARAGRAPH & TEXT ---------- */
+/* -------------------------------------- */
+
+.prose-content p {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+.prose-content strong {
+  font-weight: 700;
+}
+
+.prose-content em {
+  font-style: italic;
+}
+
+.prose-content s {
+  text-decoration: line-through;
+}
+
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------- LISTS -------------- */
+/* -------------------------------------- */
+
+.prose-content ul,
+.prose-content ol {
+  padding: 0 1rem;
+  margin: 1.25rem 1rem 1.25rem 0.4rem;
+}
+
+.prose-content ul li p,
+.prose-content ol li p {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* ---------- CODE & PREFORMATTED ------- */
+/* -------------------------------------- */
+
+.prose-content code {
+  background-color: rgba(88, 5, 255, 0.05);
+  border-radius: 0.4rem;
+  color: #2e2b29;
+  font-size: 0.85rem;
+  padding: 0.25em 0.3em;
+}
+
+.prose-content pre {
+  background: #2e2b29;
+  border-radius: 0.5rem;
+  color: #fff;
+  font-family: "JetBrainsMono", monospace;
+  margin: 1.5rem 0;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+}
+
+.prose-content pre code {
+  background: none;
+  color: inherit;
+  font-size: 0.8rem;
+  padding: 0;
+}
+
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* ------------ BLOCKQUOTE ------------- */
+/* -------------------------------------- */
+
+.prose-content blockquote {
+  border-left: 3px solid rgba(61, 37, 20, 0.12);
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+}
+
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------------------------------- */
+/* -------------- DIVIDER -------------- */
+/* -------------------------------------- */
+
+.prose-content hr {
+  border: none;
+  border-top: 1px solid rgba(61, 37, 20, 0.08);
+  margin: 2rem 0;
+}
