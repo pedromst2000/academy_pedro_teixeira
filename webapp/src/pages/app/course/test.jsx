@@ -134,7 +134,7 @@ const Test = ({ course, selectedCourseItem, progress, setAllowNext, allItems, se
 
       if (--timer < 0) {
         setTimerEnded(true);
-        clearInterval(interval);
+        clearInterval(timerRef.current);
       }
     }, 1000);
   }
@@ -174,7 +174,7 @@ const Test = ({ course, selectedCourseItem, progress, setAllowNext, allItems, se
 
       if (--timer < 0) {
         setIsAvailable(true);
-        clearInterval(interval);
+        clearInterval(timerAvailableRef.current);
       }
     }, 1000);
   }

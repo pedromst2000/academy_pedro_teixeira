@@ -41,15 +41,22 @@ export default function CourseContent({ modules, progress, data }) {
 
 	const navigate = useNavigate();
 
-	// Verifica se o utilizador está inscrito no curso
+	// Verifica se o utilizador está inscrito no curso ou já completou
 	const isEnrolled =
 		progress.filter(
 			(p) => p.activity_type === "enroll" && p.is_completed === 1,
 		).length > 0;
 
+	const isCourseCompleted =
+		progress.filter(
+			(p) => p.activity_type === "course" && p.is_completed === 1,
+		).length > 0;
+
+	const canAccess = isEnrolled || isCourseCompleted;
+
 	function handleNavigate(courseItemId, courseItemType) {
-		if (!isEnrolled) {
-			return; // Prevenir navegação se não estiver inscrito
+		if (!canAccess) {
+			return; // Prevenir navegação se não estiver inscrito ou curso não completado
 		}
 		navigate(`/${i18n.language}/courses/${slug}/learning`, {
 			state: {
@@ -102,7 +109,7 @@ export default function CourseContent({ modules, progress, data }) {
 					label: (
 						<div className="flex flex-col">
 							<div
-								className={`p-2 flex ${isEnrolled ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
+								className={`p-2 flex ${canAccess ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
 								onClick={() => handleNavigate(item.id, "module")}
 							>
 								{progress.length > 0 &&
@@ -150,7 +157,7 @@ export default function CourseContent({ modules, progress, data }) {
 								{item.items.map((_t, i) => (
 									<div
 										onClick={() => handleNavigate(_t.id, _t.type)}
-										className={`p-4 pl-6 flex items-center ${isEnrolled ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${i < item.items.length - 1 ? "border-b border-[#969696]" : ""}`}
+						className={`p-4 pl-6 flex items-center ${canAccess ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${i < item.items.length - 1 ? "border-b border-[#969696]" : ""}`}
 									>
 										{progress.length > 0 &&
 										progress.filter(
