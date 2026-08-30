@@ -41,6 +41,24 @@ export default function CourseContent({ modules, progress, data }) {
 
 	const navigate = useNavigate();
 
+	// Verifica se o utilizador está inscrito no curso
+	const isEnrolled =
+		progress.filter(
+			(p) => p.activity_type === "enroll" && p.is_completed === 1,
+		).length > 0;
+
+	function handleNavigate(courseItemId, courseItemType) {
+		if (!isEnrolled) {
+			return; // Prevenir navegação se não estiver inscrito
+		}
+		navigate(`/${i18n.language}/courses/${slug}/learning`, {
+			state: {
+				courseItemId,
+				courseItemType,
+			},
+		});
+	}
+
 	function calcProgress(items) {
 		if (items && items.length > 0) {
 			let completed = items
@@ -84,15 +102,8 @@ export default function CourseContent({ modules, progress, data }) {
 					label: (
 						<div className="flex flex-col">
 							<div
-								className="p-2 cursor-pointer flex"
-								onClick={() =>
-									navigate(`/${i18n.language}/courses/${slug}/learning`, {
-										state: {
-											courseItemId: item.id,
-											courseItemType: "module",
-										},
-									})
-								}
+								className={`p-2 flex ${isEnrolled ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
+								onClick={() => handleNavigate(item.id, "module")}
 							>
 								{progress.length > 0 &&
 								progress.filter(
@@ -138,15 +149,8 @@ export default function CourseContent({ modules, progress, data }) {
 							<div className="p-4">
 								{item.items.map((_t, i) => (
 									<div
-										onClick={() =>
-											navigate(`/${i18n.language}/courses/${slug}/learning`, {
-												state: {
-													courseItemId: _t.id,
-													courseItemType: _t.type,
-												},
-											})
-										}
-										className={`p-4 pl-6 cursor-pointer flex items-center ${i < item.items.length - 1 ? "border-b border-[#969696]" : ""}`}
+										onClick={() => handleNavigate(_t.id, _t.type)}
+										className={`p-4 pl-6 flex items-center ${isEnrolled ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${i < item.items.length - 1 ? "border-b border-[#969696]" : ""}`}
 									>
 										{progress.length > 0 &&
 										progress.filter(
