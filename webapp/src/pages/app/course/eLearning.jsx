@@ -232,6 +232,51 @@ const Learning = () => {
 		return false;
 	}
 
+	function isCourseCompleted(simulatedProgress = null) {
+    if (!data || !data.topics || !data.tests || !modules) {
+      return false;
+    }
+
+    // Determinar o progresso a ser verificado (simulado ou atual)
+    const progressToCheck = simulatedProgress || progress;
+
+    if (!progressToCheck) {
+      return false;
+    }
+
+    const completedModules = progressToCheck.filter(
+      (p) => p.activity_type === "module" && p.is_completed === 1,
+    ).length;
+    const completedTopics = progressToCheck.filter(
+      (p) => p.activity_type === "topic" && p.is_completed === 1,
+    ).length;
+    const completedTests = progressToCheck.filter(
+      (p) => p.activity_type === "test" && p.is_completed === 1,
+    ).length;
+
+    const totalModules = modules.length;
+    const totalTopics = data.topics.length;
+    const totalTests = data.tests.length;
+
+    // Determinar se é necessário verificar a conclusão de módulos, tópicos e testes
+    const needToCheckModules = totalModules > 0;
+    const needToCheckTopics = totalTopics > 0;
+    const needToCheckTests = totalTests > 0;
+
+    const allModulesCompleted =
+      !needToCheckModules || completedModules === totalModules;
+    const allTopicsCompleted =
+      !needToCheckTopics || completedTopics === totalTopics;
+    const allTestsCompleted =
+      !needToCheckTests || completedTests === totalTests;
+
+    /**
+     * Retorna verdadeiro apenas se todos os módulos, tópicos e testes necessários estiverem concluídosRetorna verdadeiro apenas se todos os módulos, tópicos e testes necessários estiverem concluídos
+	 * course is_completed = 1
+     */
+    return allModulesCompleted && allTopicsCompleted && allTestsCompleted;
+  }
+
 	function selectCourseItem(item) {
 		setSelectedCourseItem(item);
 		closeDrawer();
@@ -305,28 +350,26 @@ const Learning = () => {
 				];
 
 				// Verifica se este é o último módulo do curso
-				if (
-					moduleSelectedCourseItem.id === modules[modules.length - 1].id ||
-					progress.filter((p) => p.activity_type !== "module").length ===
-						allItems.length - 1
-				) {
-					auxData.push({
-						id_course: data.course.id,
-						id_user: user.id,
-						activity_type: "course",
-						id_course_topic: null,
-						id_course_test: null,
-						id_course_module: null,
-						is_completed: 1,
-						created_at: dayjs().add(5, "s").format("YYYY-MM-DD HH:mm:ss"),
-						modified_at: dayjs().add(5, "s").format("YYYY-MM-DD HH:mm:ss"),
-					});
+			// Simula o progresso após adicionar o item atual para verificar conclusão do curso
+			const simulatedProgress = [...progress, ...auxData];
+			if (isCourseCompleted(simulatedProgress)) {
+				auxData.push({
+					id_course: data.course.id,
+					id_user: user.id,
+					activity_type: "course",
+					id_course_topic: null,
+					id_course_test: null,
+					id_course_module: null,
+					is_completed: 1,
+					created_at: dayjs().add(5, "s").format("YYYY-MM-DD HH:mm:ss"),
+					modified_at: dayjs().add(5, "s").format("YYYY-MM-DD HH:mm:ss"),
+				});
 
-					courseCompleted = true;
-				}
+				courseCompleted = true;
+			}
 
-				goToNextModule = true;
-			} else {
+			goToNextModule = true;
+		} else {
 				auxData = [
 					{
 						id_course: data.course.id,
