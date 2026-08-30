@@ -1,14 +1,13 @@
 import { useTranslation } from "react-i18next";
 import { useContext, useEffect, useRef, useState } from "react";
 import { Button, Checkbox, Form, Input, message, Progress, Radio, Spin } from "antd";
-import { AiFillCheckCircle, AiOutlineArrowLeft, AiOutlineCheck, AiOutlineClose } from "react-icons/ai";
+import { AiFillCheckCircle, AiFillCloseCircle, AiOutlineArrowLeft, AiOutlineCheck, AiOutlineClose } from "react-icons/ai";
 import { RxArrowLeft, RxChevronLeft, RxChevronRight, RxClock, RxFile, RxFileText, RxLockClosed, RxReload } from "react-icons/rx";
 import axios from "axios";
 import endpoints from "../../../utils/endpoints";
 import { Context } from "../../../utils/context";
 import trailLoadingAnimation from "../../../assets/Trail-loading.json";
 import dayjs from "dayjs";
-import { PiWarning } from "react-icons/pi";
 import Lottie from "lottie-react";
 import { Helmet } from "react-helmet";
 
@@ -27,7 +26,6 @@ const Test = ({ course, selectedCourseItem, progress, setAllowNext, allItems, se
   const [result, setResult] = useState([]);
   const [finished, setFinished] = useState(false);
   const [isTopicLocked, setIsTopicLocked] = useState(false);
-  const [isAllowStart, setIsAllowStart] = useState(true);
   const [isAvailable, setIsAvailable] = useState(true);
   const [countdownToBeAvailable, setCountdownToBeAvailable] = useState("");
 
@@ -36,24 +34,49 @@ const Test = ({ course, selectedCourseItem, progress, setAllowNext, allItems, se
   const timerRef = useRef(null);
   const timerAvailableRef = useRef(null);
 
+  function parseTestMetadata(metaData) {
+    if (!metaData) return null;
+    try {
+      return JSON.parse(metaData);
+    } catch (e) {
+      console.error("Error parsing test result:", e);
+      return null;
+    }
+  }
+
   useEffect(() => {
     if (selectedCourseItem.type !== "test") return;
     setAllowNext(false);
     setMetaData(null);
-    let aux = Object.assign({}, selectedCourseItem);
 
-    if (selectedCourseItem && selectedCourseItem.type === "test") prepareData();
+    prepareData();
 
     console.log(course);
-    // If the topic is already completed, allow to go to the next topic/test
-    if (progress.filter((p) => p.activity_type === "test" && p.is_completed === 1 && p.id_course_test === selectedCourseItem.id).length > 0) {
+    // Verifica se o teste foi concluído ou se houve tentativas falhadas
+    const completedTest = progress.filter((p) => p.activity_type === "test" && p.is_completed === 1 && p.id_course_test === selectedCourseItem.id);
+    const failedAttempts = progress.filter((p) => p.activity_type === "test" && p.is_completed === 0 && p.id_course_test === selectedCourseItem.id);
+    
+    if (completedTest.length > 0) {
+      // Teste é aprovado - mostra o layout aprovado sem opção de reinício
       setAllowNext(true);
       setIsTopicLocked(false);
-    }
+      setFinished(true);
+      setBegin(true);
 
-    let testSettings = aux.settings && typeof aux.settings === "string" ? JSON.parse(aux.settings) : aux.settings;
-    if (progress.filter((p) => p.activity_type === "test" && p.is_completed === 0 && p.id_course_test === selectedCourseItem.id).length === (testSettings?.retries_allowed ?? 5)) {
-      setIsAllowStart(false);
+      // Restaura o resultado do teste aprovado a partir dos metadados do progresso
+      const approvedResult = parseTestMetadata(completedTest[0].meta_data);
+      if (approvedResult) setResult(approvedResult);
+    } else if (failedAttempts.length > 0) {
+      // Teste tem tentativas falhadas - mostra o layout falhado (com ou sem botão de reinício com base nas tentativas)
+      setAllowNext(false);
+      setIsTopicLocked(false);
+      setFinished(true);
+      setBegin(true);
+
+      // Restaura o resultado da tentativa falhada mais recente
+      const latestFailedAttempt = failedAttempts[failedAttempts.length - 1];
+      const failedResult = parseTestMetadata(latestFailedAttempt.meta_data);
+      if (failedResult) setResult(failedResult);
     }
 
     if (course.settings && course.settings.progression_type === "linear") {
@@ -191,28 +214,18 @@ const Test = ({ course, selectedCourseItem, progress, setAllowNext, allItems, se
       timerRef.current = null;
     }
 
-    if (canRestart()) {
-      setResult({});
-      setMetaData(null);
-      setTimePercentage(100);
-      setReview(false);
-      setCurrentQuestion(0);
-      setCalculate({});
-      setTimerEnded(false);
-      setFinished(false);
-      prepareData();
-      form.resetFields();
-      if (data.settings?.time) startTimer(data.settings?.time * 60);
-    } else {
-      message.open({
-        type: "error",
-        content: t("You reached the limit of times"),
-      });
-    }
-  }
-
-  function canRestart() {
-    return progress.filter((p) => p.activity_type === "test" && selectedCourseItem.id === p.id_course_test).length < (data.settings?.retries_allowed ?? 5);
+    setResult([]);
+    setMetaData(null);
+    setTimePercentage(100);
+    setReview(false);
+    setCurrentQuestion(0);
+    setCalculate({});
+    setTimerEnded(false);
+    setFinished(false);
+    setBegin(true);
+    prepareData();
+    form.resetFields();
+    if (data.settings?.time) startTimer(data.settings?.time * 60);
   }
 
   function submit(values) {
@@ -347,14 +360,6 @@ const Test = ({ course, selectedCourseItem, progress, setAllowNext, allItems, se
               <div>
                 {!isAvailable ? (
                   <div>{countdownToBeAvailable}</div>
-                ) : !isAllowStart ? (
-                  <div className="p-4 flex items-center bg-red-500 text-white mt-4">
-                    <PiWarning className="w-10 h-10 mr-2" />
-                    <div>
-                      <p className="text-[20px] font-bold">{t("You reached the limit")}</p>
-                      <p>{t("You can't start making the test cause you reached the limit of times that you can try")}</p>
-                    </div>
-                  </div>
                 ) : !begin ? (
                   <div className="flex flex-col justify-center items-center border border-[#707070] p-6 rounded-[5px] mt-4">
                     <p className="text-[16px]">
@@ -364,9 +369,7 @@ const Test = ({ course, selectedCourseItem, progress, setAllowNext, allItems, se
                       <b>{t("Time")}:</b> {data.settings.time} minutes
                     </p>
                     <p className="text-[16px]">
-                      <b>{t("Your tries")}:</b>{" "}
-                      {progress.filter((p) => p.activity_type === "test" && p.id_course === course.id && p.id_course_test === selectedCourseItem.id).length} /{" "}
-                      {data.settings.retries_allowed}
+                      <b>{t("Retries allowed")}:</b> {data.settings.retries_allowed}
                     </p>
                     <Button onClick={startTest} className="mt-4" type="primary" size="large">
                       {t("Start test")}
@@ -380,92 +383,135 @@ const Test = ({ course, selectedCourseItem, progress, setAllowNext, allItems, se
                   </div>
                 ) : finished ? (
                   <div className="flex flex-col mt-4">
-                    <p>
-                      <b>{result.items?.filter((r) => r.is_correct).length}</b> {t("of")} <b>{result.items?.length}</b> {t("questions answered correctly.")}
-                    </p>
-                    <div className="flex flex-col justify-center items-center p-6 bg-white mt-4">
-                      <p className="mb-4 font-bold text-[24px]">{t("Result")}</p>
-                      <AiFillCheckCircle className="text-[80px] text-[#2F8351]" />
-                      <p className="mt-4 mb-4 text-[24px] font-bold">
-                        {t("You obtained")} {result.items?.filter((r) => r.is_correct).length} {t("of")} {result.items?.length}
-                      </p>
-                      <p className="mt-4">Your percentage:</p>
-                      <p className="mb-4 text-[24px] font-bold">{(result.items?.filter((r) => r.is_correct).length * 100) / result.items?.length} %</p>
-                      <div className="flex mb-4 mt-4">
-                        <Button size="large" className="blue mr-2" onClick={() => setReview(true)} icon={<RxFileText />}>
-                          {t("Review questions")}
-                        </Button>
-                        <Button size="large" onClick={() => restartTest()} icon={<RxReload />}>
-                          {t("Restart test")}
-                        </Button>
-                      </div>
-                      {result.items?.map((q, i) => (
-                        <div className={`p-6 flex flex-col bg-[#EAEAEA] ${review ? "flex mt-4 w-full" : "hidden"}`}>
-                          <div className="flex justify-between">
-                            <p className="mb-4">
-                              <b>{i + 1}</b>. {q.title}
-                            </p>
-                          </div>
-                          <div>
-                            {q.answer.filter((c) => c.is_correct).length > 1 ? (
-                              <div>
-                                {q.answer.map((a, index) => (
-                                  <div
-                                    className={`review-test-question multiple ${q.myAnswer.includes(a.title) ? (a.is_correct ? "correct" : "incorrect") : data.settings.show_correct_answers ? (q.myAnswer.includes(a.title) && !a.is_correct ? "incorrect" : a.is_correct ? "correct" : "") : ""}`}
-                                  >
-                                    <div className="flex">
-                                      <div className={`circle flex justify-center items-center`}>
-                                        {q.myAnswer.includes(a.title) && (
-                                          <div className="w-full h-full bg-[#00B9D6] rounded-full flex justify-center items-center">
-                                            <AiOutlineCheck className="text-white text-[12px]" />
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div>
-                                        <p>{a.title}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center">
-                                      {q.myAnswer.includes(a.title) && a.is_correct && <AiOutlineCheck className="mr-2 text-[#2F8351]" />}
-                                      {q.myAnswer.includes(a.title) && !a.is_correct && <AiOutlineClose className="mr-2 text-[#DB0709]" />}
-                                      {q.myAnswer.includes(a.title) && !a.is_correct && <p className={"text-[#DB0709]"}>{t("Incorrect answer")}</p>}
-                                      {((q.myAnswer.includes(a.title) && a.is_correct) || data.settings.show_correct_answers) && (
-                                        <p className={"text-[#2F8351]"}>{a.is_correct && t("Correct answer")}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                    {(() => {
+                      const correctAnswers = result.items?.filter((r) => r.is_correct).length || 0;
+                      const totalQuestions = result.items?.length || 1;
+                      const percentage = (correctAnswers * 100) / totalQuestions;
+                      const passingScore = data.settings?.passing_score ?? 80;
+                      const isApproved = percentage >= passingScore;
+                      const retriesAllowed = data.settings?.retries_allowed ?? 5;
+                      const retriesUsed = progress.filter((p) => p.activity_type === "test" && p.id_course_test === selectedCourseItem.id).length;
+                      const canStillRetry = retriesUsed < retriesAllowed;
+
+                      return (
+                        <>
+                          {/* LAYOUT UNIFICADO DE RESULTADOS PARA APROVADO, REPROVADO E EM ANDAMENTO */}
+                          <div className="flex flex-col justify-center items-center p-6 bg-white mt-4 rounded-lg">
+                            <p className="mb-4 font-bold text-[24px]">{t("Result")}</p>
+                            {isApproved ? (
+                              <AiFillCheckCircle className="text-[80px] text-[#2F8351]" />
                             ) : (
-                              <div>
-                                {q.answer.map((a, index) => (
-                                  <div
-                                    className={`review-test-question ${a.title === q.myAnswer ? (q.is_correct ? "correct" : "incorrect") : data.settings.show_correct_answers ? (a.is_correct ? "correct" : !a.is_correct ? "incorrect" : "") : ""}`}
-                                  >
-                                    <div className="flex">
-                                      <div className={`circle flex justify-center items-center`}>
-                                        {a.title === q.myAnswer && <div className="w-3.5 h-3.5 bg-[#00B9D6] rounded-full"></div>}
-                                      </div>
-                                      <div>
-                                        <p>{a.title}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center">
-                                      {a.title === q.myAnswer && a.is_correct && <AiOutlineCheck className="mr-2 text-[#2F8351]" />}
-                                      {a.title === q.myAnswer && !a.is_correct && <AiOutlineClose className="mr-2 text-[#DB0709]" />}
-                                      {a.title === q.myAnswer && !a.is_correct && <p className={"text-[#DB0709]"}>{t("Incorrect answer")}</p>}
-                                      {((a.title === q.myAnswer && a.is_correct) || data.settings.show_correct_answers) && (
-                                        <p className={"text-[#2F8351]"}>{a.is_correct && t("Correct answer")}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                              <AiFillCloseCircle className="text-[80px] text-[#DB0709]" />
+                            )}
+                            <p className="mt-4 mb-4 text-[24px] font-bold">
+                              {isApproved ? t("Approved") : canStillRetry ? t("Failed test") : t("Repproved Test")}
+                            </p>
+                            <p className="text-[16px] mt-4">
+                              <b>{t("Your tries")}:</b>{" "}
+                              {progress.filter((p) => p.activity_type === "test" && p.id_course === course.id && p.id_course_test === selectedCourseItem.id).length} /{" "}
+                              {data.settings?.retries_allowed}
+                            </p>
+                            <p className="mt-4">Your percentage:</p>
+                            <p className="mb-4 text-[24px] font-bold">{percentage.toFixed(2)}%</p>
+                            {!isApproved && (
+                              <p className="text-center text-[14px] text-[#666]">
+                                {t("You needed")} {passingScore}% {t("to pass")}
+                              </p>
                             )}
                           </div>
+
+                          {/* BANNER DE AVISO - APENAS PARA TESTES REPROVADOS SEM TENTATIVAS RESTANTES */}
+                          {!isApproved && !canStillRetry && (
+                            <div className="p-4 flex items-center bg-[#FF7D5A] text-white mt-4 rounded-lg">
+                              <div>
+                                <p className="text-[16px] font-bold">{t("You did not pass this test")}</p>
+                                <p className="text-[14px]">{t("You have reached your attempt limit")}</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* AÇÕES */}
+                          <div className={`flex mb-4 mt-4 w-full gap-2 ${isApproved ? "justify-center" : ""}`}>
+                            <Button size="large" className="blue flex-1" onClick={() => setReview(!review)} icon={<RxFileText />}>
+                              {review ? t("Hide questions") : t("Review questions")}
+                            </Button>
+                            {!isApproved && canStillRetry && (
+                              <Button size="large" className="flex-1" onClick={() => restartTest()} icon={<RxReload />}>
+                                {t("Restart test")}
+                              </Button>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
+
+                    {/* LISTA DE QUESTÕES */}
+                    {result.items?.map((q, i) => (
+                      <div className={`p-6 flex flex-col bg-[#EAEAEA] ${review ? "flex mt-4 w-full" : "hidden"}`}>
+                        <div className="flex justify-between">
+                          <p className="mb-4">
+                            <b>{i + 1}</b>. {q.title}
+                          </p>
                         </div>
-                      ))}
-                    </div>
+                        <div>
+                          {q.answer.filter((c) => c.is_correct).length > 1 ? (
+                            <div>
+                              {q.answer.map((a, index) => (
+                                <div
+                                  className={`review-test-question multiple ${q.myAnswer.includes(a.title) ? (a.is_correct ? "correct" : "incorrect") : data.settings.show_correct_answers ? (q.myAnswer.includes(a.title) && !a.is_correct ? "incorrect" : a.is_correct ? "correct" : "") : ""}`}
+                                >
+                                  <div className="flex">
+                                    <div className={`circle flex justify-center items-center`}>
+                                      {q.myAnswer.includes(a.title) && (
+                                        <div className="w-full h-full bg-[#00B9D6] rounded-full flex justify-center items-center">
+                                          <AiOutlineCheck className="text-white text-[12px]" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <p>{a.title}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center">
+                                    {q.myAnswer.includes(a.title) && a.is_correct && <AiOutlineCheck className="mr-2 text-[#2F8351]" />}
+                                    {q.myAnswer.includes(a.title) && !a.is_correct && <AiOutlineClose className="mr-2 text-[#DB0709]" />}
+                                    {q.myAnswer.includes(a.title) && !a.is_correct && <p className={"text-[#DB0709]"}>{t("Incorrect answer")}</p>}
+                                    {((q.myAnswer.includes(a.title) && a.is_correct) || data.settings.show_correct_answers) && (
+                                      <p className={"text-[#2F8351]"}>{a.is_correct && t("Correct answer")}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div>
+                              {q.answer.map((a, index) => (
+                                <div
+                                  className={`review-test-question ${a.title === q.myAnswer ? (q.is_correct ? "correct" : "incorrect") : data.settings.show_correct_answers ? (a.is_correct ? "correct" : !a.is_correct ? "incorrect" : "") : ""}`}
+                                >
+                                  <div className="flex">
+                                    <div className={`circle flex justify-center items-center`}>
+                                      {a.title === q.myAnswer && <div className="w-3.5 h-3.5 bg-[#00B9D6] rounded-full"></div>}
+                                    </div>
+                                    <div>
+                                      <p>{a.title}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center">
+                                    {a.title === q.myAnswer && a.is_correct && <AiOutlineCheck className="mr-2 text-[#2F8351]" />}
+                                    {a.title === q.myAnswer && !a.is_correct && <AiOutlineClose className="mr-2 text-[#DB0709]" />}
+                                    {a.title === q.myAnswer && !a.is_correct && <p className={"text-[#DB0709]"}>{t("Incorrect answer")}</p>}
+                                    {((a.title === q.myAnswer && a.is_correct) || data.settings.show_correct_answers) && (
+                                      <p className={"text-[#2F8351]"}>{a.is_correct && t("Correct answer")}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : timerEnded ? (
                   <div className="p-4 flex items-center bg-[#FF7D5A] text-white mt-4">
