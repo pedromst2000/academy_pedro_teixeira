@@ -250,19 +250,29 @@ const Learning = () => {
 		let goToNextModule = false;
 		let courseCompleted = false;
 		if (findInProgress.length === 0) {
-			if (
-				selectedCourseItem.id ===
-					moduleSelectedCourseItem.items[
-						moduleSelectedCourseItem.items.length - 1
-					].id ||
-				moduleSelectedCourseItem.items.length ===
-					progress.filter(
-						(p) =>
-							p.id_course_module === moduleSelectedCourseItem.id &&
-							p.activity_type !== "module",
-					).length +
-						1
-			) {
+			// contar os itens completados no módulo após adicionar o item atual
+			const completedItemsInModule = progress.filter(
+				(p) =>
+					p.id_course_module === moduleSelectedCourseItem.id &&
+					p.activity_type !== "module" &&
+					p.is_completed === 1,
+			).length + 1; // +1 para incluir o item atual
+
+			// Verifica se todos os itens do módulo serão completados após adicionar o item atual
+			const allModuleItemsCompleted =
+				completedItemsInModule === moduleSelectedCourseItem.items.length;
+
+			// Verifica se o módulo ainda não foi marcado como completo
+			const moduleNotYetCompleted =
+				progress.filter(
+					(p) =>
+						p.id_course_module === moduleSelectedCourseItem.id &&
+						p.activity_type === "module" &&
+						p.is_completed === 1,
+				).length === 0;
+
+			if (allModuleItemsCompleted && moduleNotYetCompleted) {
+				// Marcar o módulo como completo apenas quando TODOS os itens estiverem concluídos
 				auxData = [
 					{
 						id_course: data.course.id,
@@ -294,7 +304,7 @@ const Learning = () => {
 					},
 				];
 
-				//Falta saber se é o último tópico ou teste que pode fazer se o curso não for do tipo linear
+				// Verifica se este é o último módulo do curso
 				if (
 					moduleSelectedCourseItem.id === modules[modules.length - 1].id ||
 					progress.filter((p) => p.activity_type !== "module").length ===
@@ -374,26 +384,27 @@ const Learning = () => {
 					console.log(err);
 				});
 		} else {
-			if (
-				selectedCourseItem.id ===
-					moduleSelectedCourseItem.items[
-						moduleSelectedCourseItem.items.length - 1
-					].id ||
-				moduleSelectedCourseItem.items.length ===
-					progress.filter(
-						(p) =>
-							p.id_course_module === moduleSelectedCourseItem.id &&
-							p.activity_type !== "module",
-					).length +
-						1
-			) {
+			// O item já está concluído, apenas navegua para o próximo
+			const completedItemsInModule = progress.filter(
+				(p) =>
+					p.id_course_module === moduleSelectedCourseItem.id &&
+					p.activity_type !== "module" &&
+					p.is_completed === 1,
+			).length;
+
+			const allModuleItemsCompleted =
+				completedItemsInModule === moduleSelectedCourseItem.items.length;
+
+			if (allModuleItemsCompleted) {
+				// Todos os itens já estão concluídos, vai para o próximo módulo
 				const indexOfSelectedItem = modules.findIndex(
 					(m) => m.id === selectedCourseItem.id_course_module,
 				);
 				if (modules[indexOfSelectedItem + 1])
 					setSelectedCourseItem(modules[indexOfSelectedItem + 1]);
-				else console.log("último módulo");
+				else console.log("Last module completed");
 			} else {
+				// Nem todos os itens estão concluídos, vai para o próximo item no módulo
 				let indexOfSelectedItem = moduleSelectedCourseItem.items.findIndex(
 					(m) => m.id === selectedCourseItem.id,
 				);
