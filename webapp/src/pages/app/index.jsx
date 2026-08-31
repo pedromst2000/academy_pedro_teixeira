@@ -51,7 +51,7 @@ export default function Main() {
 			<div className="flex flex-col-reverse lg:grid lg:grid-cols-3 gap-10 h-full">
 				<div className="flex flex-col justify-center h-full col-span-2">
 					<p className="text-[30px] font-bold">
-						{t("Sobre Bial Regional Academy")}
+						{t("About Bial Regional Academy")}
 					</p>
 					<p className="italic">{t("Keeping training in mind")}</p>
 					{data?.text ? (

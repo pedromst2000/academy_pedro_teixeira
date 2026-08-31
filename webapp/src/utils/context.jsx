@@ -31,6 +31,7 @@ const ContextProvider = ({ children }) => {
 
 	const inboxRef = useRef(inbox);
 	const selectedInboxRef = useRef(selectedInbox);
+	const isLoadingLanguagesRef = useRef(false);
 
 	const [windowDimension, setWindowDimension] = useState({
 		width: window.innerWidth,
@@ -60,9 +61,14 @@ const ContextProvider = ({ children }) => {
 		getLanguages();
 	}, []);
 
+	// Atualiza a personalização sempre que a linguagem ou os idiomas disponíveis mudam
 	useEffect(() => {
-		getPersonalization(languages);
-	}, [i18n.language]);
+		if (languages && languages.length > 0) {
+			getPersonalization(languages);
+		}
+	}, [i18n.language, languages]);
+
+
 
 	useEffect(() => {
 		if (Object.keys(user).length === 0) return;
@@ -181,14 +187,27 @@ const ContextProvider = ({ children }) => {
 	}
 
 	async function getLanguages() {
+		// Prevenir chamadas simultâneas para evitar Race Conditions
+		if (isLoadingLanguagesRef.current) {
+			// console.log('⚠️ getLanguages already running, skipping duplicate call');
+			return;
+		}
+
+		isLoadingLanguagesRef.current = true;
+
 		try {
+			// console.log('🔵 getLanguages started');
 			const res = await axios.get(endpoints.language.read);
+			// console.log('✅ Language data fetched:', res.data);
 			setLanguages(res.data);
-			getPersonalization(res.data);
 
 			const auxLanguages = res.data;
+			const currentLang = i18n.language;
+			// console.log('🔵 Current language:', currentLang);
+
 			for (let i = 0; i < auxLanguages.length; i++) {
 				if (auxLanguages[i].translation) {
+					// console.log('🔵 Processing language:', auxLanguages[i].code);
 					const translation = JSON.parse(auxLanguages[i].translation).reduce(
 						(acc, item) => {
 							acc[item.key] = item.value;
@@ -197,21 +216,30 @@ const ContextProvider = ({ children }) => {
 						{},
 					);
 
+					// console.log('✅ Clearing old bundle for:', auxLanguages[i].code);
+					i18n.removeResourceBundle(auxLanguages[i].code, "translation");
 					i18n.addResources(auxLanguages[i].code, "translation", translation);
 				}
 			}
 
-			const idLangStorage = localStorage.getItem("id_lang");
+			const otherLang = currentLang === "en" ? "pt" : "en";
+			// console.log('⚠️ Forcing language switch to:', otherLang, 'then:', currentLang);
+			await i18n.changeLanguage(otherLang);
+			await i18n.changeLanguage(currentLang);
+			// console.log('✅ Language switched back, triggering re-render');
 
+			const idLangStorage = localStorage.getItem("id_lang");
+			const defaultLanguage = res.data.find((_l) => _l.is_default === 1);
+
+			// Fallback se o localStorage estiver corrompido ou ausente
 			setSelectedLanguage(
-				res.data.filter((_l) =>
-					idLangStorage
-						? _l.id === parseInt(idLangStorage)
-						: _l.is_default === 1,
-				)[0],
+				(idLangStorage && res.data.find((_l) => _l.id === parseInt(idLangStorage))) || defaultLanguage
 			);
+			// console.log('✅ getLanguages completed');
 		} catch (err) {
-			console.log(err);
+			console.error('Error in getLanguages:', err);
+		} finally {
+			isLoadingLanguagesRef.current = false;
 		}
 	}
 
@@ -314,7 +342,7 @@ const ContextProvider = ({ children }) => {
 				res.data.filter((s) => s.name === "homepage_text")[0] ?? {},
 			);
 		} catch (err) {
-			console.log(err);
+			console.error('Error in getPersonalization:', err);
 		}
 	}
 
@@ -434,6 +462,7 @@ const ContextProvider = ({ children }) => {
 				courses,
 				setCourses,
 				languages,
+				getLanguages,
 				isLoadingLanguage,
 				setIsLoadingLanguage,
 				t,

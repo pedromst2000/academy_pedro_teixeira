@@ -15,12 +15,10 @@ import { Context } from "../../utils/context";
 import endpoints from "../../utils/endpoints";
 import { AiOutlinePlus } from "react-icons/ai";
 import Translations from "../../components/admin/language/translations";
-import { useTranslation } from "react-i18next";
 import { RxReload } from "react-icons/rx";
 
 export default function Language() {
-  const { user } = useContext(Context);
-  const { t } = useTranslation();
+  const { user, t, getLanguages } = useContext(Context);
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState([]);
   const [tableData, setTableData] = useState([]);
@@ -37,17 +35,21 @@ export default function Language() {
 
   function getData() {
     setIsLoading(true);
-    axios
-      .get(endpoints.language.read)
-      .then((res) => {
-        setData(res.data);
-        prepareData(res.data);
-        setIsLoading(false);
-      })
-      .catch((err) => {
-        console.log(err);
-        setIsLoading(false);
-      });
+    return new Promise((resolve, reject) => {
+      axios
+        .get(endpoints.language.read)
+        .then((res) => {
+          setData(res.data);
+          prepareData(res.data);
+          setIsLoading(false);
+          resolve(res.data);
+        })
+        .catch((err) => {
+          console.log(err);
+          setIsLoading(false);
+          reject(err);
+        });
+    });
   }
 
   function prepareData(array) {
@@ -126,14 +128,31 @@ export default function Language() {
     setIsOpenDelete(true);
   }
 
-  function closeAction(c) {
-    if (c) {
-      getData();
-    }
+  async function closeAction(c) {
     setIsOpenUpdate(false);
     setIsOpenCreate(false);
     setIsOpenDelete(false);
     setIsOpenTranslations(false);
+    
+    if (c) {
+      try {
+        // console.log('🔵 closeAction triggered, refreshing data...');
+        const freshData = await getData();
+        // console.log('✅ Fresh data loaded:', freshData);
+        await getLanguages();
+        // console.log('✅ i18n cache refreshed');
+        
+        // Verifica se o idioma selecionado ainda existe nos dados atualizados e atualiza o estado caso exista
+        if (selectedData && selectedData.id) {
+          const updatedLanguage = freshData.find((lang) => lang.id === selectedData.id);
+          if (updatedLanguage) {
+            setSelectedData(updatedLanguage);
+          }
+        }
+      } catch (err) {
+        console.error("❌ Error refreshing language data:", err);
+      }
+    }
   }
 
   return (
