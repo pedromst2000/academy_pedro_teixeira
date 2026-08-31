@@ -36,7 +36,7 @@ import VideosIcon from "../../../assets/Videos.svg";
 import CertificateIconWhite from "../../../assets/Certificado-digital.svg?react";
 import DownloadCloudIcon from "../../../assets/download-cloud.svg?react";
 import i18n from "../../../utils/i18n";
-import certificate from "../../../utils/certificate";
+import { downloadCertificate } from "../../../utils/certificate";
 import trailLoadingAnimation from "../../../assets/Trail-loading.json";
 import { GridIcon, ListIcon } from "lucide-react";
 import Countdown from "../../../components/countdown";
@@ -179,38 +179,8 @@ export default function CourseDetails() {
 		return 0;
 	}
 
-	function downloadCertificate(item, progress) {
-		axios
-			.get(endpoints.course_certificate.readById, {
-				params: { id: item.id_course_certificate },
-			})
-			.then((res) => {
-				certificate.generate(
-					{
-						background: `${config.server_ip}/media/${res.data[0].background}`,
-						text: res.data[0].text,
-						fileName: `${item.name}-${user.name.replace(/\s+/g, "-")}.pdf`,
-					},
-					{
-						name: user.name,
-						course: item.name,
-						date:
-							progress.filter(
-								(p) => p.id_course === item.id && p.activity_type === "course",
-							).length > 0
-								? dayjs(
-										progress.filter(
-											(p) =>
-												p.id_course === item.id && p.activity_type === "course",
-										)[0]?.created_at,
-									).format("YYYY-MM-DD HH:mm")
-								: null,
-					},
-				);
-			})
-			.catch((err) => {
-				console.log(err);
-			});
+	function handleDownloadCertificate(item, progress) {
+		downloadCertificate(item, progress, user, config, endpoints);
 	}
 
 	function updateCourseAvailable(obj) {
@@ -332,7 +302,7 @@ export default function CourseDetails() {
 															<Button
 																className="certificate-button"
 																onClick={() =>
-																	downloadCertificate(
+																	handleDownloadCertificate(
 																		item.course,
 																		item.progress,
 																	)

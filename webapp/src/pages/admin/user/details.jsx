@@ -14,6 +14,8 @@ import UserCard from "../../../components/admin/user/card";
 import DownloadCloudIcon from "../../../assets/download-cloud.svg?react";
 import CertificateIconWhite from "../../../assets/Certificado-digital.svg?react";
 import dayjs from "dayjs";
+import  { downloadCertificate } from "../../../utils/certificate";
+import config from "../../../utils/config";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 import TimeIcon from "../../../assets/Backoffice/Tempo.svg?react";
 import PassedIcon from "../../../assets/Backoffice/Status-01.svg?react";
@@ -130,29 +132,8 @@ export default function UserDetails() {
     );
   }
 
-  function downloadCertificate(item, progress) {
-    axios
-      .get(endpoints.course_certificate.readById, { params: { id: item.id_course_certificate } })
-      .then((res) => {
-        certificate.generate(
-          {
-            background: `${config.server_ip}/media/${res.data[0].background}`,
-            text: res.data[0].text,
-            fileName: `${item.name}-${user.name.replace(/\s+/g, "-")}.pdf`,
-          },
-          {
-            name: user.name,
-            course: item.name,
-            date:
-              progress.filter((p) => p.id_course === item.id && p.activity_type === "course").length > 0
-                ? dayjs(progress.filter((p) => p.id_course === item.id && p.activity_type === "course")[0]?.created_at).format("YYYY-MM-DD HH:mm")
-                : null,
-          },
-        );
-      })
-      .catch((err) => {
-        console.log(err);
-      });
+  function handleDownloadCertificate(item, progress) {
+    downloadCertificate(item, progress, user, config, endpoints);
   }
 
   function submit(values) {
@@ -551,7 +532,7 @@ export default function UserDetails() {
                                 (c.allItems.filter((_c) => _c.type === "topic").length + c.allItems.filter((_c) => _c.type === "test").length) ===
                                 100 && (
                                 <div className="flex items-center w-full">
-                                  <Button className="certificate-button  ml-4" onClick={() => downloadCertificate(c.course, c.progress)}>
+                                  <Button className="certificate-button  ml-4" onClick={() => handleDownloadCertificate(c.course, c.progress)}>
                                     <div className="flex justify-center items-center">
                                       <DownloadCloudIcon className="mr-2 h-3" />
                                       <p className="text-[12px]">{t("Certificate")}</p>

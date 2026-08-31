@@ -44,6 +44,7 @@ function Library({ mediaKey, option, close }) {
       });
   }
 
+  
   function handleSubmit(values) {
     form.resetFields();
     close(values);
@@ -64,6 +65,11 @@ function Library({ mediaKey, option, close }) {
   }
 
   function handleSearch(e, all) {
+    // Reinicia a paginação ao realizar uma busca
+    setCurrentPage(1);
+    setMinValue(0);
+    setMaxValue(itemsPerPage);
+    
     if (e.search) {
       const auxNewData = JSON.parse(JSON.stringify(data));
       let searchedData = auxNewData.filter((item) => item.name.toLowerCase().includes(e.search.toLowerCase()));
@@ -79,36 +85,40 @@ function Library({ mediaKey, option, close }) {
         {data.length > 0 ? (
           <Form form={form} onFinish={handleSubmit} onValuesChange={handleSearch}>
             <Form.Item name="search" className="mt-4!">
-              <Input size="large" placeholder="Procure aqui pelo nome da imagem..." prefix={<SearchOutlined />} allowClear />
+              <Input size="large" placeholder="Procure aqui pelo nome da imagem ou documento..." prefix={<SearchOutlined />} allowClear />
             </Form.Item>
             <Form.Item name={mediaKey}>
-              <Radio.Group buttonStyle="solid" className="grid! grid-cols-4 gap-4">
-                {filteredData.slice(minValue, maxValue).map((item) => {
-                  return (
-                    <Radio.Button value={item.name} className="radio-image">
-                      <div className="flex flex-col justify-center items-center h-full w-full p-2 rounded-none!">
-                        {item.name.split(".")[1] === "pdf" ? (
-                          <Tooltip placement="bottom" title={item.name}>
-                            <FaFilePdf className="text-[40px]" />
-                          </Tooltip>
-                        ) : item.name.split(".")[1] === "pptx" ? (
-                          <Tooltip placement="bottom" title={item.name}>
-                            <FaFilePowerpoint className="text-[40px]" />
-                          </Tooltip>
-                        ) : (
-                          <Tooltip placement="bottom" title={item.name}>
-                            <img src={`${config.server_ip}/media/${item.name}`} className="w-full" />
-                          </Tooltip>
-                        )}
-                      </div>
-                    </Radio.Button>
-                  );
-                })}
-              </Radio.Group>
+              {filteredData.length > 0 ? (
+                <Radio.Group buttonStyle="solid" className="grid! grid-cols-4 gap-4">
+                  {filteredData.slice(minValue, maxValue).map((item) => {
+                    return (
+                      <Radio.Button value={item.name} className="radio-image">
+                        <div className="flex flex-col justify-center items-center h-full w-full p-2 rounded-none!">
+                          {item.name.split(".")[1] === "pdf" ? (
+                            <Tooltip placement="bottom" title={item.name}>
+                              <FaFilePdf className="text-[40px]" />
+                            </Tooltip>
+                          ) : item.name.split(".")[1] === "pptx" ? (
+                            <Tooltip placement="bottom" title={item.name}>
+                              <FaFilePowerpoint className="text-[40px]" />
+                            </Tooltip>
+                          ) : (
+                            <Tooltip placement="bottom" title={item.name}>
+                              <img src={`${config.server_ip}/media/${item.name}`} className="w-full" />
+                            </Tooltip>
+                          )}
+                        </div>
+                      </Radio.Button>
+                    );
+                  })}
+                </Radio.Group>
+              ) : (
+                <Empty />
+              )}
             </Form.Item>
-            {data.length > 0 && (
+            {filteredData.length > 0 && (
               <div className="flex justify-center items-center mt-4 w-full">
-                <Pagination align="center" onChange={handleChangePage} pageSize={itemsPerPage} defaultCurrent={1} current={currentPage} total={data.length} />
+                <Pagination align="center" onChange={handleChangePage} pageSize={itemsPerPage} defaultCurrent={1} current={currentPage} total={filteredData.length} />
               </div>
             )}
             <div className="flex justify-center items-center mt-6">

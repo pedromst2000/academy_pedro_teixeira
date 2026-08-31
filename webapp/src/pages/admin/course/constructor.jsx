@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { DndContext, PointerSensor, DragOverlay, useSensor, useSensors, closestCenter, useDroppable } from "@dnd-kit/core";
-import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { DndContext, PointerSensor, DragOverlay, useSensor, useSensors, pointerWithin, useDroppable } from "@dnd-kit/core";
+import { SortableContext, useSortable, arrayMove } from "@dnd-kit/sortable";
+// import { CSS } from "@dnd-kit/utilities";
 
 /* ANTD */
 import { Card, Button, Input, Space, Typography, Popconfirm, message, Tag } from "antd";
@@ -22,16 +22,16 @@ const isTopicId = (id) => typeof id === "string" && id.startsWith("topic-");
 const isTestId = (id) => typeof id === "string" && id.startsWith("test-");
 
 /* -------------------- Grip (drag handle) -------------------- */
-function Grip({ attributes, listeners, title }) {
+function Grip({ attributes, listeners, title, style }) {
   return (
-    <div {...attributes} {...listeners} title={title} className="cursor-grab px-1 select-none text-gray-500">
+    <div {...attributes} {...listeners} title={title} style={style} className="cursor-grab px-1 select-none text-gray-500">
       ⋮⋮
     </div>
   );
 }
 
 /* -------------------- Wrapper de animação de remoção -------------------- */
-function RemoveAnim({ isRemoving, duration = 200, children }) {
+function RemoveAnim({ isRemoving, duration = 400, children }) {
   return (
     <div
       className="grid transition-all"
@@ -39,7 +39,7 @@ function RemoveAnim({ isRemoving, duration = 200, children }) {
         gridTemplateRows: isRemoving ? "0fr" : "1fr",
         opacity: isRemoving ? 0 : 1,
         transform: isRemoving ? "scale(0.95)" : "scale(1)",
-        transition: `grid-template-rows ${duration}ms, opacity ${duration}ms, transform ${duration}ms`,
+        transition: `grid-template-rows ${duration}ms ease-out, opacity ${duration}ms ease-out, transform ${duration}ms ease-out`,
       }}
     >
       <div className="overflow-hidden">{children}</div>
@@ -48,18 +48,18 @@ function RemoveAnim({ isRemoving, duration = 200, children }) {
 }
 
 /* -------------------- Zona droppable do MÓDULO (aceita drop em área vazia) -------------------- */
-function ModuleDropArea({ id, children }) {
+function ModuleDropArea({ id, children, style }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className={isOver ? "bg-blue-50/40 rounded" : ""}>
+    <div ref={setNodeRef} style={style} className={isOver ? "bg-blue-50/40 rounded" : ""}>
       {children}
     </div>
   );
 }
 
 /* -------------------- Tópico/Teste ordenável (com botão Editar + setas ↑↓) -------------------- */
-function SortableTopic({ item, onDelete, onCommitLabel, isDeleting, canMoveUp, canMoveDown, onMoveUp, onMoveDown, navigate, course }) {
-  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: item.id });
+function SortableTopic({ item, onDelete, onCommitLabel, isDeleting, canMoveUp, canMoveDown, onMoveUp, onMoveDown, navigate, course, activeId, overId, forbiddenDropId }) {
+  const { setNodeRef, attributes, listeners } = useSortable({ id: item.id });
 
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(item.title);
@@ -77,20 +77,33 @@ function SortableTopic({ item, onDelete, onCommitLabel, isDeleting, canMoveUp, c
     setEditing(false);
   };
 
+  const isBeingDragged = activeId === item.id;
+  const isDropTarget = overId === item.id;
+  const isForbiddenDropTarget = forbiddenDropId === item.id;
+
   return (
     <RemoveAnim isRemoving={isDeleting}>
       <Card
         ref={setNodeRef}
-        className="border mb-2!"
+        className={`mb-2! transition-colors ${ isForbiddenDropTarget ? "border-red-500 border-2" : "" }`}
         style={{
-          transform: CSS.Transform.toString(transform),
-          transition,
-          opacity: isDragging ? 0.5 : 1,
+          transform: "none",
+          transition: "background-color 150ms ease, border-color 150ms ease",
+          opacity: 1,
+          backgroundColor: isForbiddenDropTarget ? "rgba(220, 38, 38, 0.08)" : (activeId && isDropTarget ? "rgba(13, 110, 253, 0.15)" : "transparent"),
+          cursor: isForbiddenDropTarget ? "not-allowed" : "default",
         }}
         bodyStyle={{ padding: 8 }}
       >
         <div className="flex items-center gap-2">
-          <Grip attributes={editing ? {} : attributes} listeners={editing ? {} : listeners} title="Arrastar topic/test" />
+          <Grip 
+            attributes={editing ? {} : attributes} 
+            listeners={editing ? {} : listeners} 
+            title="Arrastar topic/test"
+            style={{
+              cursor: isBeingDragged ? "grabbing" : "grab",
+            }}
+          />
 
           {editing ? (
             <div className="flex items-center gap-2 w-full">
@@ -122,7 +135,10 @@ function SortableTopic({ item, onDelete, onCommitLabel, isDeleting, canMoveUp, c
               </Space>
 
               <Space>
+              {/* BOTÃO EDITAR - disabled para items não salvos na BD */}
                 <Button
+                  disabled={!item.id || item.id.split("-")[0].startsWith("new")}
+                  title={!item.id ? "Item inválido" : item.id.split("-")[0].startsWith("new") ? `Salve o ${item.type === "test" ? "teste" : "tópico"} primeiro para editar este item` : "Editar item"}
                   onClick={() => navigate(`/admin/courses/${course.id}/${item.type === "topic" ? "topic" : "test"}/${parseInt(item.id.split("-")[1])}`)}
                   icon={<AiOutlineEdit />}
                 />
@@ -141,8 +157,8 @@ function SortableTopic({ item, onDelete, onCommitLabel, isDeleting, canMoveUp, c
 function TopicOverlay({ item }) {
   if (!item) return null;
   return (
-    <Card size="small" className="shadow-xl border" bodyStyle={{ padding: 8 }}>
-      <div className="flex items-center gap-2 opacity-80">
+    <Card size="small" className="shadow-xl border" bodyStyle={{ padding: 8 }} style={{ opacity: 0.4 }}>
+      <div className="flex items-center gap-2">
         <span>⋮⋮</span>
         <Tag color={item.type === "test" ? "geekblue" : "green"}>{item.type}</Tag>
         <Text>{item.title}</Text>
@@ -154,7 +170,7 @@ function TopicOverlay({ item }) {
 function ModuleOverlay({ module }) {
   if (!module) return null;
   return (
-    <Card className="shadow-2xl border opacity-80">
+    <Card className="shadow-2xl border" style={{ opacity: 0.65 }}>
       <Text className="font-medium">⋮⋮ {module.title}</Text>
     </Card>
   );
@@ -175,10 +191,13 @@ function SortableModule({
   canMoveDown,
   onMoveUp,
   onMoveDown,
+  activeId,
+  overId,
 }) {
-  const { setNodeRef, transform, transition, attributes, listeners } = useSortable({ id: module.id });
+  const { setNodeRef, attributes, listeners } = useSortable({ id: module.id });
 
   const [editing, setEditing] = useState(false);
+  const isDropTarget = overId === module.id;
 
   return (
     <RemoveAnim isRemoving={isDeleting}>
@@ -220,9 +239,10 @@ function SortableModule({
           </div>
         }
         style={{
-          transform: CSS.Transform.toString(transform),
-          transition,
-          opacity: isActive ? 0 : 1, // mantém o espaço do módulo “ativo”
+          transform: "none",
+          transition: "background-color 150ms ease",
+          opacity: 1,
+          backgroundColor: activeId && isDropTarget ? "rgba(13, 110, 253, 0.15)" : "",
           pointerEvents: isActive ? "none" : "auto",
         }}
         className={`shadow-md ${dropRing ? "ring-2 ring-blue-500 ring-offset-2" : ""}`}
@@ -243,7 +263,8 @@ function SortableModule({
 
 export default function Constructor({ course }) {
   const { createLog, user, selectedLanguage } = useContext(Context);
-  const [isUnsaved, setIsUnsaved] = useState(true);
+  const [isUnsaved, setIsUnsaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [original, setOriginal] = useState([]);
   const [modules, setModules] = useState([]);
 
@@ -254,8 +275,12 @@ export default function Constructor({ course }) {
   /* ---------- Eliminar com animação ---------- */
   const [deletingItems, setDeletingItems] = useState(new Set());
   const [deletingModules, setDeletingModules] = useState(new Set());
-  const timersRef = useRef({ items: new Map(), mods: new Map() });
-  const ANIM_MS = 200;
+  const timersRef = useRef(new Map()); // Map para armazenar timers de remoção de items/módulos
+  const pendingDeletionsRef = useRef({ items: new Set(), modules: new Set() }); // Track de items/módulos pendentes de remoção
+  const confirmedDeletionsRef = useRef({ items: new Set(), modules: new Set() }); // Track de items/módulos confirmados para remoção (após flush)
+  const flushTimerRef = useRef(null);
+  const historyPushedRef = useRef(false); // Track se o histórico foi adicionado neste lote de deleção
+  const ANIM_MS = 400;
 
   const navigate = useNavigate();
 
@@ -276,34 +301,47 @@ export default function Constructor({ course }) {
       console.log(res);
       if (res.data.course.length > 0) {
         console.log(res.data.modules);
-        const modulesData = res.data.modules.map((mod) => ({
+        // Ordenar os módulos e items por posição (position) antes de definir o estado
+        const sortedModules = res.data.modules.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+        const modulesData = sortedModules.map((mod) => ({
           id: `mod-${mod.id}`,
           title: mod.title,
           items: mod.items
-            ? JSON.parse(mod.items).map((i) => {
-                if (i.type === "test") {
-                  if (res.data.tests.filter((t) => i.id === t.id).length > 0)
-                    return {
-                      id: `test-${res.data.tests.filter((t) => i.id === t.id)[0].id}`,
-                      title: res.data.tests.filter((t) => i.id === t.id)[0].title,
-                      type: i.type,
-                    };
-                }
-                if (i.type === "topic") {
-                  if (res.data.topics.filter((t) => i.id === t.id).length > 0)
-                    return {
-                      id: `topic-${res.data.topics.filter((t) => i.id === t.id)[0].id}`,
-                      title: res.data.topics.filter((t) => i.id === t.id)[0].title,
-                      type: i.type,
-                    };
-                }
-              })
+            ? JSON.parse(mod.items)
+                .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+                .map((i) => {
+                  if (i.type === "test") {
+                    if (res.data.tests.filter((t) => i.id === t.id).length > 0)
+                      return {
+                        id: `test-${res.data.tests.filter((t) => i.id === t.id)[0].id}`,
+                        title: res.data.tests.filter((t) => i.id === t.id)[0].title,
+                        type: i.type,
+                      };
+                  }
+                  if (i.type === "topic") {
+                    if (res.data.topics.filter((t) => i.id === t.id).length > 0)
+                      return {
+                        id: `topic-${res.data.topics.filter((t) => i.id === t.id)[0].id}`,
+                        title: res.data.topics.filter((t) => i.id === t.id)[0].title,
+                        type: i.type,
+                      };
+                  }
+                  return null; // Devolve null se o item não for encontrado
+                })
+                .filter((item) => item !== null) // Remove items nulos (não encontrados)
             : [],
         }));
 
         console.log(modulesData);
         setModules(modulesData);
         setOriginal(Object.assign([], modulesData));
+        
+        // Resetar os estados de deleção e histórico 
+        historyPushedRef.current = false;
+        pendingDeletionsRef.current.items.clear();
+        pendingDeletionsRef.current.modules.clear();
+        confirmedDeletionsRef.current.items.clear();
+        confirmedDeletionsRef.current.modules.clear();
       }
     } catch (err) {
       console.log(err);
@@ -335,14 +373,100 @@ export default function Constructor({ course }) {
 
   /* ---------- Guardar (persistir) ---------- */
   async function save() {
+    setIsSaving(true);
+    
+   // Se houver um flush pendente, cancela o timer e aplica as deleções imediatamente
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+      
+      // Aplica as deleções pendentes imediatamente
+      const itemsToDelete = new Set(pendingDeletionsRef.current.items);
+      const modulesToDelete = new Set(pendingDeletionsRef.current.modules);
+      
+      if (itemsToDelete.size > 0 || modulesToDelete.size > 0) {
+
+        // Marca os items/módulos como confirmados para deleção
+        itemsToDelete.forEach(id => confirmedDeletionsRef.current.items.add(id));
+        modulesToDelete.forEach(id => confirmedDeletionsRef.current.modules.add(id));
+        
+
+        setModules((prev) =>
+          prev
+            .filter((m) => !modulesToDelete.has(m.id))
+            .map((m) => ({
+              ...m,
+              items: m.items && Array.isArray(m.items) ? m.items.filter((i) => !itemsToDelete.has(i.id)) : [],
+            }))
+        );
+        
+        // Limpa os conjuntos de deleção pendentes após aplicar
+        pendingDeletionsRef.current.items.clear();
+        pendingDeletionsRef.current.modules.clear();
+      }
+    }
+    
+    // Aguardar um ciclo de event loop para garantir que o estado foi atualizado antes de prosseguir
+    await new Promise(resolve => setTimeout(resolve, 0));
+    
     try {
+      // Detectar items deletados comparando com o estado original
+      const actualDeletedItems = new Set();
+      const actualDeletedModules = new Set();
+
+      // Extrair IDs dos items e módulos do estado original (última vez que foi salvo)
+      const originalItemIds = new Set();
+      const originalModuleIds = new Set();
+      
+      original.forEach((mod) => {
+        originalModuleIds.add(mod.id);
+        if (mod.items && Array.isArray(mod.items)) {
+          mod.items.forEach((i) => originalItemIds.add(i.id));
+        }
+      });
+
+      // Extrair IDs do estado atual (UI)
+      const currentItemIds = new Set();
+      const currentModuleIds = new Set();
+      
+      modules.forEach((mod) => {
+        currentModuleIds.add(mod.id);
+        if (mod.items && Array.isArray(mod.items)) {
+          mod.items.forEach((i) => currentItemIds.add(i.id));
+        }
+      });
+
+      // Detectar items que estavam no original mas não estão agora = foram deletados
+      originalItemIds.forEach((id) => {
+        if (!currentItemIds.has(id) && !id.split("-")[0].startsWith("new")) {
+          actualDeletedItems.add(id);
+        }
+      });
+
+      // Detectar módulos que estavam no original mas não estão agora = foram deletados
+      originalModuleIds.forEach((id) => {
+        if (!currentModuleIds.has(id) && !id.split("-")[0].startsWith("new")) {
+          actualDeletedModules.add(id);
+        }
+      });
+
+      // Adiciona os items/módulos confirmados para deleção (após flush) aos conjuntos de deleção final
+      confirmedDeletionsRef.current.items.forEach(id => actualDeletedItems.add(id));
+      confirmedDeletionsRef.current.modules.forEach(id => actualDeletedModules.add(id));
+
+      console.log("Confirmed deletion fallback items:", Array.from(confirmedDeletionsRef.current.items));
+      console.log("Confirmed deletion fallback modules:", Array.from(confirmedDeletionsRef.current.modules));
+      console.log("Final delete items:", Array.from(actualDeletedItems));
+      console.log("Final delete modules:", Array.from(actualDeletedModules));
+
       const insert = await axios.post(endpoints.course.module, {
-        data: modules.map((m) => ({
+        data: modules.map((m, index) => ({
           ...m,
           id_course: course.id,
-          items: m.items.map((i) => ({ ...i, id_course_module: m.id })),
+          position: index,
+          items: m.items && Array.isArray(m.items) ? m.items.map((i, itemIndex) => ({ ...i, id_course_module: m.id, position: itemIndex })) : [],
         })),
-        deleted: { items: Array.from(deletingItems), modules: Array.from(deletingModules) },
+        deleted: { items: Array.from(actualDeletedItems), modules: Array.from(actualDeletedModules) },
       });
 
       await createLog({
@@ -350,57 +474,181 @@ export default function Constructor({ course }) {
         action: "update",
         table_name: "course",
         meta_data: JSON.stringify({
-          items: modules.map((m) => ({
+          items: modules.map((m, index) => ({
             ...m,
             id_course: course.id,
-            items: m.items.map((i) => ({ ...i, id_course_module: m.id })),
+            position: index,
+            items: m.items && Array.isArray(m.items) ? m.items.map((i, itemIndex) => ({ ...i, id_course_module: m.id, position: itemIndex })) : [],
           })),
           name: course.name,
-          deleted: { items: Array.from(deletingItems), modules: Array.from(deletingModules) },
+          deleted: { items: Array.from(actualDeletedItems), modules: Array.from(actualDeletedModules) },
         }),
         id_lang: selectedLanguage.id,
       });
       console.log(insert);
-      setOriginal(Object.assign([], modules));
+      
+      // Recarrega os dados do curso após salvar para garantir que o estado local está sincronizado com a BD
+      await getData();
+      
+      // Limpa os estados de exclusão pendentes após salvar
+      setDeletingItems(new Set());
+      setDeletingModules(new Set());
+      historyPushedRef.current = false;
+      pendingDeletionsRef.current.items.clear();
+      pendingDeletionsRef.current.modules.clear();
+      confirmedDeletionsRef.current.items.clear();
+      confirmedDeletionsRef.current.modules.clear();
+      
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      
+      // Após salvar, começamos uma nova sessão sem histórico prévio
+      setHistory([]);
+      setFuture([]);
+      
       message.success("Estado guardado!");
     } catch (err) {
       console.log(err);
       message.error("Falha ao guardar.");
+    } finally {
+      setIsSaving(false);
     }
   }
 
   function cancelPendingDeletes() {
-    timersRef.current.items.forEach((t) => clearTimeout(t));
-    timersRef.current.mods.forEach((t) => clearTimeout(t));
-    timersRef.current.items.clear();
-    timersRef.current.mods.clear();
+    timersRef.current.forEach((t) => clearTimeout(t));
+    timersRef.current.clear();
+    
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    
+    pendingDeletionsRef.current.items.clear();
+    pendingDeletionsRef.current.modules.clear();
+    confirmedDeletionsRef.current.items.clear();
+    confirmedDeletionsRef.current.modules.clear();
+    
+    // Resetar o flag de histórico para permitir novas deleções
+    historyPushedRef.current = false;
+    
     setDeletingItems(new Set());
     setDeletingModules(new Set());
   }
 
-  function deleteTopic(moduleId, itemId) {
-    console.log(moduleId, itemId);
-    pushHistory(modules);
-    setDeletingItems((s) => new Set(s).add(itemId));
-    const t = setTimeout(() => {
-      setModules((prev) => prev.map((m) => (m?.id === moduleId ? { ...m, items: m.items.filter((i) => i?.id !== itemId) } : m)));
-
-      timersRef.current.items.delete(itemId);
+  function flushPendingDeletions() {
+    const itemsToDelete = new Set(pendingDeletionsRef.current.items);
+    const modulesToDelete = new Set(pendingDeletionsRef.current.modules);
+    
+    if (itemsToDelete.size === 0 && modulesToDelete.size === 0) {
+      return;
+    }
+        
+    // Marca os items/módulos como confirmados para deleção
+    itemsToDelete.forEach(id => confirmedDeletionsRef.current.items.add(id));
+    modulesToDelete.forEach(id => confirmedDeletionsRef.current.modules.add(id));
+        
+    // Reinicia os conjuntos de deleção pendentes após agendar limpeza
+    pendingDeletionsRef.current.items.clear();
+    pendingDeletionsRef.current.modules.clear();
+    flushTimerRef.current = null;
+    
+    // Agendar a limpeza do estado após a animação de remoção
+    const cleanupTimer = setTimeout(() => {
+      
+      // Remover os items/módulos confirmados do estado
+      setDeletingItems((s) => {
+        const newSet = new Set(s);
+        itemsToDelete.forEach(id => newSet.delete(id));
+        return newSet;
+      });
+      
+      setDeletingModules((s) => {
+        const newSet = new Set(s);
+        modulesToDelete.forEach(id => newSet.delete(id));
+        return newSet;
+      });
+      
+      setModules((prev) => {
+        const result = prev
+          .filter((m) => !modulesToDelete.has(m.id))
+          .map((m) => ({
+            ...m,
+            items: m.items && Array.isArray(m.items) ? m.items.filter((i) => !itemsToDelete.has(i.id)) : [],
+          }));
+        
+        console.log("State updated - modules count:", result.length);
+        result.forEach(m => {
+          const itemCount = m.items && Array.isArray(m.items) ? m.items.length : 0;
+          console.log(`  Module ${m.id}: ${itemCount} items`);
+        });
+        
+        return result;
+      });
+      
+      timersRef.current.delete('batch-cleanup');
     }, ANIM_MS);
-    timersRef.current.items.set(itemId, t);
+    
+    timersRef.current.set('batch-cleanup', cleanupTimer);
+  }
+
+  function deleteTopic(moduleId, itemId) {
+    console.log("Delete item:", itemId, "from module:", moduleId);
+    
+    if (!historyPushedRef.current) {
+      pushHistory(modules);
+      historyPushedRef.current = true;
+    }
+    
+    pendingDeletionsRef.current.items.add(itemId);
+    console.log("Pending items for deletion:", Array.from(pendingDeletionsRef.current.items));
+    
+    // Exibir animação visualmente
+    setDeletingItems((s) => new Set(s).add(itemId));
+    
+    // Agendar flush usando microtask para agrupar todas as deleções neste loop de eventos
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+    }
+    
+    flushTimerRef.current = setTimeout(() => {
+      flushPendingDeletions();
+      // Resetar o flag de histórico após o flush
+      historyPushedRef.current = false;
+    }, 0);
   }
 
   function deleteModule(moduleId) {
-    pushHistory(modules);
+    console.log("Delete module:", moduleId);
+    
+    if (!historyPushedRef.current) {
+      pushHistory(modules);
+      historyPushedRef.current = true;
+    }
+    
+    pendingDeletionsRef.current.modules.add(moduleId);
+    console.log("Pending modules for deletion:", Array.from(pendingDeletionsRef.current.modules));
+    
     setDeletingModules((s) => new Set(s).add(moduleId));
-    const t = setTimeout(() => {
-      setModules((prev) => prev.filter((m) => m.id !== moduleId));
-      timersRef.current.mods.delete(moduleId);
-    }, ANIM_MS);
-    timersRef.current.mods.set(moduleId, t);
+    
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+    }
+    
+    flushTimerRef.current = setTimeout(() => {
+      flushPendingDeletions();
+      historyPushedRef.current = false;
+    }, 0);
   }
 
   /* ---------- Adicionar / Editar ---------- */
+  function addModule() {
+    pushHistory(modules);
+    setModules((p) => [...p, { id: makeId("newmod-"), title: "Novo módulo", items: [] }]);
+  }
+
   function addTopic(moduleId) {
     pushHistory(modules);
     setModules((prev) =>
@@ -461,7 +709,7 @@ export default function Constructor({ course }) {
 
   function moveTopic(modId, itemId, direction) {
     const mod = modules.find((m) => m.id === modId);
-    if (!mod) return;
+    if (!mod || !mod.items || !Array.isArray(mod.items)) return;
     const idx = mod.items.findIndex((i) => i.id === itemId);
     if (idx < 0) return;
     const delta = direction === "up" ? -1 : 1;
@@ -476,11 +724,13 @@ export default function Constructor({ course }) {
   const [activeId, setActiveId] = useState(null);
   const [overId, setOverId] = useState(null); // highlight do módulo alvo
   const [modDropIndicator, setModDropIndicator] = useState(null); // { modId, side: 'top'|'bottom' }
+  const [itemDropIndicator, setItemDropIndicator] = useState(null); // { modId, itemId, side: 'top'|'bottom' }
+  const [forbiddenDropId, setForbiddenDropId] = useState(null); // Visual feedback when trying to drag outside module
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const moduleIds = useMemo(() => modules.map((m) => m.id), [modules]);
 
-  const findModuleByTopic = (id) => modules.find((m) => m.items.some((i) => i.id === id));
+  const findModuleByTopic = (id) => modules.find((m) => m.items && Array.isArray(m.items) && m.items.some((i) => i.id === id));
 
   function moduleIdForOver(overId) {
     if (!overId) return null;
@@ -495,13 +745,22 @@ export default function Constructor({ course }) {
 
   function onDragOver(e) {
     const over = e.over?.id ?? null;
-    setOverId(over);
+    
+    // Atualiza o estado do módulo alvo (overId) apenas se for um módulo ou um item dentro de um módulo
+    if (isModuleId(e.active.id) && isModuleId(over)) {
+      setOverId(over);
+    } else if ((isTopicId(e.active.id) || isTestId(e.active.id)) && (isTopicId(over) || isTestId(over))) {
+      setOverId(over);
+    } else {
+      setOverId(null);
+    }
 
     // Indicador de inserção (barra horizontal) para MÓDULOS (vertical)
     if (isModuleId(e.active.id)) {
-      const targetModId = moduleIdForOver(over);
-      if (!targetModId) {
+      // Apenas permitir colisão com outros módulos
+      if (!isModuleId(over)) {
         setModDropIndicator(null);
+        setItemDropIndicator(null);
         return;
       }
 
@@ -511,12 +770,71 @@ export default function Constructor({ course }) {
         const activeCenterY = activeRect.top + activeRect.height / 2;
         const overCenterY = overRect.top + overRect.height / 2;
         setModDropIndicator({
-          modId: targetModId,
+          modId: over,
+          side: activeCenterY < overCenterY ? "top" : "bottom",
+        });
+        setItemDropIndicator(null);
+      }
+    }
+    // Indicador de inserção (barra horizontal) para TÓPICOS/TESTES (itens dentro de módulos)
+    else if (isTopicId(e.active.id) || isTestId(e.active.id)) {
+      setModDropIndicator(null);
+      
+      // Apenas permitir colisão com outros tópicos/testes
+      if (!isTopicId(over) && !isTestId(over)) {
+        setItemDropIndicator(null);
+        setForbiddenDropId(null);
+        return;
+      }
+      
+      const fromModId = findModuleByTopic(e.active.id)?.id;
+      const toModId = findModuleByTopic(over)?.id;
+      
+      if (!fromModId || !toModId) {
+        setItemDropIndicator(null);
+        setForbiddenDropId(null);
+        return;
+      }
+      
+      // Proibir arrastar entre módulos diferentes - permitir apenas drops dentro do mesmo módulo
+      if (fromModId !== toModId) {
+        setItemDropIndicator(null);
+        setForbiddenDropId(e.over?.id); // Feedback visual de proibição de drop
+        return;
+      }
+      
+      setForbiddenDropId(null); // Resetar feedback visual de proibição de drop
+      
+      const toMod = modules.find((m) => m.id === toModId);
+      if (!toMod || !toMod.items || !Array.isArray(toMod.items)) {
+        setItemDropIndicator(null);
+        return;
+      }
+      
+      const overRect = e.over?.rect;
+      const activeRect = e.active.rect.current.translated ?? e.active.rect.current.initial;
+      if (overRect && activeRect) {
+        const activeCenterY = activeRect.top + activeRect.height / 2;
+        const overCenterY = overRect.top + overRect.height / 2;
+        
+        let targetItemId = null;
+        if (isTopicId(over) || isTestId(over)) {
+          targetItemId = over;
+        } else if (isModuleId(over)) {
+          // Se o alvo for um módulo, definir o targetItemId como null (indicando que o item será adicionado no final do módulo)
+          setItemDropIndicator(null);
+          return;
+        }
+        
+        setItemDropIndicator({
+          modId: toModId,
+          itemId: targetItemId,
           side: activeCenterY < overCenterY ? "top" : "bottom",
         });
       }
     } else {
       setModDropIndicator(null);
+      setItemDropIndicator(null);
     }
   }
 
@@ -524,14 +842,18 @@ export default function Constructor({ course }) {
     setActiveId(null);
     setOverId(null);
     setModDropIndicator(null);
+    setItemDropIndicator(null);
+    setForbiddenDropId(null);
   }
 
   function onDragEnd(e) {
     const { active, over } = e;
     setActiveId(null);
     setOverId(null);
-    const currentIndicator = modDropIndicator;
+    const currentModIndicator = modDropIndicator;
     setModDropIndicator(null);
+    setItemDropIndicator(null);
+    setForbiddenDropId(null);
     if (!over) return;
 
     const a = active.id;
@@ -546,8 +868,8 @@ export default function Constructor({ course }) {
       let toIndex = moduleIds.indexOf(targetModId);
       if (toIndex === -1) return;
 
-      if (currentIndicator && currentIndicator.modId === targetModId) {
-        toIndex = toIndex + (currentIndicator.side === "bottom" ? 1 : 0);
+      if (currentModIndicator && currentModIndicator.modId === targetModId) {
+        toIndex = toIndex + (currentModIndicator.side === "bottom" ? 1 : 0);
         if (fromIndex < toIndex) toIndex -= 1;
       }
 
@@ -564,70 +886,56 @@ export default function Constructor({ course }) {
     }
 
     // Mover/Reordenar TÓPICOS/TESTES via drag
-    if (isTopicId(a)) {
-      const fromModId = moduleIdForOver(a) ?? findModuleByTopic(a)?.id;
-      const toModId = (isTopicId(o) && moduleIdForOver(o)) || (isModuleId(o) && o);
+    if (isTopicId(a) || isTestId(a)) {
+      const fromModId = findModuleByTopic(a)?.id;
+      const toModId = (isTopicId(o) || isTestId(o)) ? findModuleByTopic(o)?.id : (isModuleId(o) ? o : null);
 
       if (!fromModId || !toModId) return;
 
+      // Proibir arrastar entre módulos diferentes - permitir apenas drops dentro do mesmo módulo
+      if (fromModId !== toModId) return;
+
       const fromMod = modules.find((m) => m.id === fromModId);
       const toMod = modules.find((m) => m.id === toModId);
-      if (!fromMod || !toMod) return;
+      if (!fromMod || !toMod || !fromMod.items || !Array.isArray(fromMod.items) || !toMod.items || !Array.isArray(toMod.items)) return;
 
       const fromIndex = fromMod.items.findIndex((i) => i.id === a);
-      let toIndex = isTopicId(o) ? toMod.items.findIndex((i) => i.id === o) : toMod.items.length;
+      let toIndex = (isTopicId(o) || isTestId(o)) ? toMod.items.findIndex((i) => i.id === o) : toMod.items.length;
 
-      if (fromMod.id === toMod.id) {
-        if (fromIndex === toIndex) return;
-        pushHistory(modules);
-        setModules((prev) => prev.map((m) => (m.id === fromMod.id ? { ...m, items: arrayMove(m.items, fromIndex, toIndex) } : m)));
-        return;
-      }
-
-      if (toIndex < 0) toIndex = toMod.items.length;
+      if (fromIndex === toIndex) return;
       pushHistory(modules);
-      const moving = fromMod.items[fromIndex];
-
-      setModules((prev) =>
-        prev.map((m) => {
-          if (m.id === fromMod.id) {
-            const arr = [...m.items];
-            arr.splice(fromIndex, 1);
-            return { ...m, items: arr };
-          }
-          if (m.id === toMod.id) {
-            const arr = [...m.items];
-            arr.splice(toIndex, 0, moving);
-            return { ...m, items: arr };
-          }
-          return m;
-        }),
-      );
+      setModules((prev) => prev.map((m) => (m.id === fromMod.id ? { ...m, items: arrayMove(m.items, fromIndex, toIndex) } : m)));
+      return;
     }
   }
 
   /* Overlay data */
-  const activeTopic = isTopicId(activeId) && findModuleByTopic(activeId)?.items.find((i) => i.id === activeId);
+  const activeTopic = (() => {
+    if (!(isTopicId(activeId) || isTestId(activeId))) return null;
+    const mod = findModuleByTopic(activeId);
+    if (!mod || !mod.items || !Array.isArray(mod.items)) return null;
+    return mod.items.find((i) => i.id === activeId);
+  })();
   const activeModule = isModuleId(activeId) && modules.find((m) => m.id === activeId);
 
   return (
     <div>
       <Space wrap>
-        <Button onClick={() => setModules((p) => [...p, { id: makeId("newmod-"), title: "Novo módulo", items: [] }])}>+ Novo módulo</Button>
-        <Button onClick={undo} disabled={!history.length}>
+        <Button onClick={addModule}>+ Novo módulo</Button>
+        <Button onClick={undo} disabled={!history.length || isSaving}>
           Undo
         </Button>
-        <Button onClick={redo} disabled={!future.length}>
+        <Button onClick={redo} disabled={!future.length || isSaving}>
           Redo
         </Button>
-        <Button type="primary" onClick={save} disabled={!isUnsaved}>
+        <Button type="primary" onClick={save} disabled={!isUnsaved || isSaving} loading={isSaving}>
           Guardar
         </Button>
       </Space>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragOver={onDragOver} onDragCancel={onDragCancel} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={onDragStart} onDragOver={onDragOver} onDragCancel={onDragCancel} onDragEnd={onDragEnd}>
         {/* MÓDULOS: lista VERTICAL */}
-        <SortableContext items={moduleIds} strategy={verticalListSortingStrategy}>
+        <SortableContext items={moduleIds}>
           <div className="flex flex-col gap-3 mt-6">
             {modules.map((mod, modIndex) => {
               const isActiveMod = isModuleId(activeId) && activeId === mod.id;
@@ -655,29 +963,46 @@ export default function Constructor({ course }) {
                     canMoveDown={canModDown}
                     onMoveUp={(id) => moveModule(id, "up")}
                     onMoveDown={(id) => moveModule(id, "down")}
+                    activeId={activeId}
+                    overId={overId}
                   >
                     {/* ZONA DROPPABLE DO MÓDULO (aceita drop em área vazia) */}
-                    <ModuleDropArea id={mod.id}>
+                    <ModuleDropArea id={mod.id} style={forbiddenDropId && findModuleByTopic(forbiddenDropId)?.id === mod.id ? { cursor: "not-allowed" } : {}}>
                       {/* TÓPICOS/TESTES: lista VERTICAL */}
-                      <SortableContext items={mod.items.map((i) => i?.id)} strategy={verticalListSortingStrategy}>
-                        {mod.items.length === 0 ? (
+                      <SortableContext items={(mod.items && Array.isArray(mod.items)) ? mod.items.map((i) => i?.id) : []}>
+                        {!mod.items || mod.items.length === 0 ? (
                           <div className="text-gray-400 text-sm p-3 border border-dashed rounded bg-gray-50">Solta tópicos/testes aqui</div>
                         ) : (
-                          mod.items.map((item, itemIndex) => (
-                            <SortableTopic
-                              key={item?.id}
-                              item={{ ...item, moduleId: mod?.id }}
-                              isDeleting={deletingItems.has(item?.id)}
-                              onDelete={deleteTopic}
-                              onCommitLabel={commitTopicLabel}
-                              canMoveUp={itemIndex > 0}
-                              canMoveDown={itemIndex < mod.items.length - 1}
-                              onMoveUp={(mId, itId) => moveTopic(mId, itId, "up")}
-                              onMoveDown={(mId, itId) => moveTopic(mId, itId, "down")}
-                              navigate={navigate}
-                              course={course}
-                            />
-                          ))
+                          mod.items.map((item, itemIndex) => {
+                            const showItemTopBar = itemDropIndicator && itemDropIndicator.modId === mod.id && itemDropIndicator.itemId === item?.id && itemDropIndicator.side === "top" && activeId !== item?.id;
+                            const showItemBottomBar = itemDropIndicator && itemDropIndicator.modId === mod.id && (itemDropIndicator.itemId === item?.id && itemDropIndicator.side === "bottom" || (itemDropIndicator.itemId === null && itemIndex === mod.items.length - 1)) && activeId !== item?.id;
+                            
+                            return (
+                              <React.Fragment key={item?.id}>
+                                {/* Indicador de inserção ACIMA do item */}
+                                {showItemTopBar && <div className="h-1 bg-blue-500 rounded-full my-1" style={{ backgroundColor: "rgb(13, 110, 253)" }} />}
+                                
+                                <SortableTopic
+                                  item={{ ...item, moduleId: mod?.id }}
+                                  isDeleting={deletingItems.has(item?.id)}
+                                  onDelete={deleteTopic}
+                                  onCommitLabel={commitTopicLabel}
+                                  canMoveUp={itemIndex > 0}
+                                  canMoveDown={itemIndex < mod.items.length - 1}
+                                  onMoveUp={(mId, itId) => moveTopic(mId, itId, "up")}
+                                  onMoveDown={(mId, itId) => moveTopic(mId, itId, "down")}
+                                  navigate={navigate}
+                                  course={course}
+                                  activeId={activeId}
+                                  overId={overId}
+                                  forbiddenDropId={forbiddenDropId}
+                                />
+                                
+                                {/* Indicador de inserção ABAIXO do item */}
+                                {showItemBottomBar && <div className="h-1 bg-blue-500 rounded-full my-1" style={{ backgroundColor: "rgb(13, 110, 253)" }} />}
+                              </React.Fragment>
+                            );
+                          })
                         )}
                       </SortableContext>
                     </ModuleDropArea>

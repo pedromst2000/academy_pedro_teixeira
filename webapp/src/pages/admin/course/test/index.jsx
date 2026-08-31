@@ -1,32 +1,23 @@
 import axios from "axios";
-import { useContext, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useState } from "react";
-
-import { Context } from "../../../../utils/context";
 
 import endpoints from "../../../../utils/endpoints";
 import { useTranslation } from "react-i18next";
-import { Button, Empty, Form, Input, InputNumber, Switch, Tabs } from "antd";
-import Constructor from "../constructor";
+import { Form, Tabs } from "antd";
 import { useParams } from "react-router-dom";
 import Settings from "./settings";
 import Question from "./question";
 
 export default function Test() {
-  const { user, update } = useContext(Context);
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState(null);
 
   const { t } = useTranslation();
-  let { id, idTest } = useParams();
-
+  const { idTest } = useParams();
   const [form] = Form.useForm();
 
-  useEffect(() => {
-    getData();
-  }, []);
-
-  function getData() {
+  const getData = useCallback(() => {
     setIsLoading(true);
     axios
       .get(endpoints.course.readByTestId, {
@@ -35,18 +26,21 @@ export default function Test() {
       .then((res) => {
         if (res.data && res.data.length > 0) {
           res.data[0].question = res.data[0].question ? JSON.parse(res.data[0].question) : [];
-          res.data[0].settings = res.data[0].settings ? JSON.parse(res.data[0].settings) : {};
-
+          res.data[0].settings = res.data[0].settings ? JSON.parse(res.data[0].settings) : {};          
           form.setFieldsValue(res.data[0]);
           setData(res.data[0]);
         }
         setIsLoading(false);
       })
       .catch((err) => {
-        console.log(err);
+        console.log("❌ [getData] Error:", err);
         setIsLoading(false);
       });
-  }
+  }, [idTest, form]);
+
+  useEffect(() => {
+    getData();
+  }, []);
 
   return (
     <div className="p-2">
@@ -63,7 +57,7 @@ export default function Test() {
           {
             key: "1",
             label: t("Questions"),
-            children: <Question data={data} />,
+            children: <Question data={data} onSaveSuccess={getData} isLoading={isLoading} />,
           },
           {
             key: "2",

@@ -27,7 +27,7 @@ router.get("/read", async (req, res) => {
 				"WHERE course_test.is_deleted = 0 AND course_module.is_deleted = 0; " +
 				"SELECT course_user_activity.* FROM course_user_activity LEFT JOIN course ON course.id = course_user_activity.id_course " +
 				"WHERE course_user_activity.id_user = ?; SELECT * FROM product",
-			req.query.id_user,
+			[req.query.id_user],
 		);
 
 		res.send({
@@ -70,7 +70,7 @@ router.get("/readByLang", async (req, res) => {
 	const query = util.promisify(db.query).bind(db);
 	try {
 		const rows = await query(
-			"SELECT * FROM course WHERE id_lang = ?; " +
+			"SELECT * FROM course WHERE id_lang = ? AND is_deleted = 0; " +
 				"SELECT course_module.* FROM course_module LEFT JOIN course ON course.id = course_module.id_course WHERE id_lang = ? AND course_module.is_deleted = 0; " +
 				"SELECT course_topic.* FROM course_topic LEFT JOIN course_module ON course_topic.id_course_module = course_module.id " +
 				"LEFT JOIN course ON course.id = course_module.id_course WHERE course.id_lang = ? AND course_topic.is_deleted = 0 AND course_module.is_deleted = 0; " +
@@ -106,10 +106,10 @@ router.get("/readById", async (req, res) => {
 	const query = util.promisify(db.query).bind(db);
 	try {
 		const rows = await query(
-			"SELECT * FROM course WHERE id = ? AND is_deleted = 0; SELECT course_module. * FROM course_module WHERE id_course = ? AND is_deleted = 0; " +
+			"SELECT * FROM course WHERE id = ?; SELECT course_module.* FROM course_module WHERE id_course = ? AND is_deleted = 0; " +
 				"SELECT course_topic.* FROM course_topic LEFT JOIN course_module ON course_topic.id_course_module = course_module.id WHERE course_module.id_course = ? " +
 				"AND course_topic.is_deleted = 0 AND course_module.is_deleted = 0; " +
-				"SELECT course_test.* FROM course_test LEFT JOIN course_module ON course_test.id_course_module = course_module.id WHERE course_module.id_course = ?" +
+				"SELECT course_test.* FROM course_test LEFT JOIN course_module ON course_test.id_course_module = course_module.id WHERE course_module.id_course = ? " +
 				"AND course_test.is_deleted = 0 AND course_module.is_deleted = 0; ",
 			[req.query.id, req.query.id, req.query.id, req.query.id],
 		);
@@ -437,9 +437,26 @@ router.post("/module", async (req, res, next) => {
 		try {
 			await transaction();
 			let data = req.body.data;
-			console.log(req.body.deleted);
-			let deletedItems = req.body.deleted.items;
-			let deletedModules = req.body.deleted.modules;
+			
+			// console.log("\n========== DELETE REQUEST ==========");
+			// console.log("FULL deleted object:", JSON.stringify(req.body.deleted, null, 2));
+			// console.log("deleted.items type:", typeof req.body.deleted.items, "is array?", Array.isArray(req.body.deleted.items));
+			// console.log("deleted.items raw:", req.body.deleted.items);
+			// console.log("deleted.items length:", req.body.deleted.items?.length);
+			// console.log("deleted.modules type:", typeof req.body.deleted.modules, "is array?", Array.isArray(req.body.deleted.modules));
+			// console.log("deleted.modules raw:", req.body.deleted.modules);
+			// console.log("====================================\n");
+			
+			let deletedItems = req.body.deleted.items || [];
+			let deletedModules = req.body.deleted.modules || [];
+			
+			// Parse de IDs dos módulos deletados para verificar ao atualizar os itens
+			const deletedModuleIds = new Set(
+				deletedModules
+					.map((_i) => parseInt(_i.split("-")[1]))
+					.filter((_id) => !isNaN(_id))
+			);
+			// console.log("Deleted module IDs set:", deletedModuleIds);
 
 			for (let i = 0; i < data.length; i++) {
 				const aux = data[i];
@@ -462,21 +479,34 @@ router.post("/module", async (req, res, next) => {
 						? insertedModule.insertId
 						: parseInt(aux.id.split("-")[1]);
 
+				let newItems = [];
+				
 				if (aux.items && aux.items.length > 0) {
-					let newItems = [];
 					for (let z = 0; z < aux.items.length; z++) {
+						// Verifica se o item é um novo teste ou tópico
+						const isNewTest = aux.items[z].id.split("-")[0] === "newtest";
+						const isNewTopic = aux.items[z].id.split("-")[0] === "newtopic";
+						
+						const itemData = {
+							id:
+								isNewTest || isNewTopic
+									? null
+									: parseInt(aux.items[z].id.split("-")[1]),
+							id_course_module: aux.id,
+							title: aux.items[z].title,
+							is_deleted: 0,
+						};
+						
+						// Adiciona configurações padrão para novos testes
+						if (isNewTest && aux.items[z].type === "test") {
+							itemData.settings = JSON.stringify({
+								passing_score: 75,
+							});
+						}
+						
 						const insertedItem = await query(
 							`INSERT INTO ${aux.items[z].type === "test" ? "course_test" : "course_topic"} SET ? ON DUPLICATE KEY UPDATE title = VALUES(title), id_course_module = VALUES(id_course_module), is_deleted = 0`,
-							{
-								id:
-									aux.items[z].id.split("-")[0] === "newtopic" ||
-									aux.items[z].id.split("-")[0] === "newtest"
-										? null
-										: parseInt(aux.items[z].id.split("-")[1]),
-								id_course_module: aux.id,
-								title: aux.items[z].title,
-								is_deleted: 0,
-							},
+							itemData,
 						);
 
 						newItems.push({
@@ -488,51 +518,96 @@ router.post("/module", async (req, res, next) => {
 							type: aux.items[z].type,
 						});
 					}
-
-					await query("UPDATE course_module SET items = ? WHERE id = ?", [
-						JSON.stringify(newItems),
-						aux.id,
-					]);
 				}
+
+				// Atualiza os itens do módulo, mas verifica se o módulo foi deletado antes de atualizar
+				let itemsValue;
+				if (deletedModuleIds.has(aux.id)) {
+					itemsValue = null;
+					// console.log(`Module ${aux.id} is deleted → setting items to NULL`);
+				} else {
+					itemsValue = newItems.length > 0 ? JSON.stringify(newItems) : JSON.stringify([]);
+					// console.log(`Updating module ${aux.id} items to:`, newItems);
+				}
+				
+				await query("UPDATE course_module SET items = ? WHERE id = ?", [
+					itemsValue,
+					aux.id,
+				]);
 			}
 
 			if (deletedItems.length > 0) {
+				// console.log("\n PROCESSING DELETED ITEMS");
+				// console.log("Raw deletedItems:", deletedItems);
+				
 				let deletedItemsId = deletedItems
 					.filter((_t) => _t.includes("topic"))
-					.map((_i) => parseInt(_i.split("-")[1]));
+					.map((_i) => {
+						const id = parseInt(_i.split("-")[1]);
+						// console.log(`  Topic: "${_i}" → ID: ${id}`);
+						return id;
+					})
+					.filter((_id) => !isNaN(_id));
+				
+				// console.log("Parsed topic IDs:", deletedItemsId);
+				
 				if (deletedItemsId.length > 0) {
-					await query(
+					// console.log(`Deleting ${deletedItemsId.length} topics`);
+					const result = await query(
 						"UPDATE course_topic SET is_deleted = 1 WHERE id IN (?)",
-						deletedItemsId,
+						[deletedItemsId]
 					);
+					// console.log("Topics deleted:", result.affectedRows);
 				}
 
 				let deletedTestsId = deletedItems
 					.filter((_t) => _t.includes("test"))
-					.map((_i) => parseInt(_i.split("-")[1]));
+					.map((_i) => {
+						const id = parseInt(_i.split("-")[1]);
+						// console.log(`  Test: "${_i}" → ID: ${id}`);
+						return id;
+					})
+					.filter((_id) => !isNaN(_id));
+				
+				// console.log("Parsed test IDs:", deletedTestsId);
+				
 				if (deletedTestsId.length > 0) {
-					await query(
+					// console.log(`Deleting ${deletedTestsId.length} tests`);
+					const result = await query(
 						"UPDATE course_test SET is_deleted = 1 WHERE id IN (?)",
-						deletedTestsId,
+						[deletedTestsId]
 					);
+					// console.log("Tests deleted:", result.affectedRows);
 				}
 			}
 
 			if (deletedModules.length > 0) {
-				let deletedModulesId = deletedModules.map((_i) =>
-					parseInt(_i.split("-")[1]),
-				);
-				console.log(deletedModulesId);
+				// console.log("\n📋 PROCESSING DELETED MODULES");
+				// console.log("Raw deletedModules:", deletedModules);
+				
+				let deletedModulesId = deletedModules
+					.map((_i) => {
+						const id = parseInt(_i.split("-")[1]);
+						// console.log(`  Module: "${_i}" → ID: ${id}`);
+						return id;
+					})
+					.filter((_id) => !isNaN(_id));
+				
+				// console.log("Parsed module IDs:", deletedModulesId);
+				
 				if (deletedModulesId.length > 0) {
-					await query(
+					// console.log(`Deleting ${deletedModulesId.length} modules`);
+					const result = await query(
 						"UPDATE course_module SET is_deleted = 1 WHERE id IN (?)",
-						deletedModulesId,
+						[deletedModulesId]
 					);
+					// console.log("Modules deleted:", result.affectedRows);
 				}
 			}
 
 			await commit();
 			conn.release();
+			// console.log("✅ TRANSACTION COMMITTED SUCCESSFULLY");
 			res.send(data);
 		} catch (err) {
 			console.log(err);
@@ -562,8 +637,10 @@ router.post("/duplicate", async (req, res, next) => {
 			course.internal_name =
 				data.new_internal_name || course.internal_name + " (copy)";
 			course.id_lang = data.id_lang || course.id_lang;
-			course.id_certificate = null;
+			course.id_course_certificate = null;
 			course.status = "draft";
+			course.slug = slugify(data.new_name || course.name + " (copy)", { lower: true, strict: true });
+
 			const insertedCourse = await query("INSERT INTO course SET ?", course);
 
 			let modules = await query(
@@ -574,13 +651,21 @@ router.post("/duplicate", async (req, res, next) => {
 				let module = modules[i];
 				delete module.id;
 				module.id_course = insertedCourse.insertId;
-				let moduleItems = module.items ? JSON.parse(module.items) : null;
+				
+				let moduleItems = null;
+				try {
+					moduleItems = module.items ? JSON.parse(module.items) : null;
+				} catch (parseError) {
+					console.log(`Warning: Failed to parse items for module, skipping...`, parseError.message);
+					moduleItems = null;
+				}
+				
 				delete module.items;
 				const insertedModule = await query(
 					"INSERT INTO course_module SET ?",
 					module,
 				);
-				if (moduleItems.length > 0) {
+				if (moduleItems && moduleItems.length > 0) {
 					let newItems = [];
 
 					for (let z = 0; z < moduleItems.length; z++) {
@@ -592,6 +677,12 @@ router.post("/duplicate", async (req, res, next) => {
 										"SELECT * FROM course_topic WHERE id = ?",
 										item.id,
 									);
+						
+						if (!rowItem || rowItem.length === 0) {
+							console.log(`Warning: ${item.type} with id ${item.id} not found, skipping...`);
+							continue;
+						}
+						
 						const rowItemData = rowItem[0];
 						delete rowItemData.id;
 						rowItemData.id_course_module = insertedModule.insertId;
@@ -615,7 +706,7 @@ router.post("/duplicate", async (req, res, next) => {
 
 			await commit();
 			conn.release();
-			res.send(data);
+			res.send({ insertId: insertedCourse.insertId });
 		} catch (err) {
 			console.log(err);
 			await rollback();

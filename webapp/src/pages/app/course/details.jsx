@@ -34,7 +34,7 @@ import MaterialIcon from "../../../assets/Materiais.svg?react";
 import ObjectionIcon from "../../../assets/Livro-Objecoes-On.svg?react";
 import trailLoadingAnimation from "../../../assets/Trail-loading.json";
 import Lottie from "lottie-react";
-import CourseObjection from "./objection";
+import CourseObjection from "./objection/objection";
 import { computeClosable } from "antd/es/_util/hooks";
 import { Helmet } from "react-helmet";
 

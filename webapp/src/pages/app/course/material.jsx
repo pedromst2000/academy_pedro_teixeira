@@ -13,12 +13,14 @@ export default function CourseMaterial({ data }) {
     <div className="mb-10">
       {data.material && data.material.length > 0 ? (
         <div className="flex flex-col">
-          {data.material.map((m, i) => (
-            <div key={i} className="flex items-center border border-gray-300 p-4 mb-4 cursor-pointer hover:bg-gray-100 rounded-[5px]" onClick={() => downloadFile(m)}>
-              <MaterialIcon className="w-5 h-5 mr-2" />
-              <p className="text-[16px]">{m.file}</p>
-            </div>
-          ))}
+          {data.material
+            .filter((m) => m.file) // Filtrar materiais sem arquivo associado
+            .map((m, i) => (
+              <div key={i} className="flex items-center border border-gray-300 p-4 mb-4 cursor-pointer hover:bg-gray-100 rounded-[5px]" onClick={() => downloadFile(m)}>
+                <MaterialIcon className="w-5 h-5 mr-2" />
+                <p className="text-[16px]">{m.name || m.file}</p>
+              </div>
+            ))}
         </div>
       ) : (
         <p className="text-gray-500">No materials available.</p>

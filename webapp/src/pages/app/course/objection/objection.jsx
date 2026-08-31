@@ -1,8 +1,9 @@
 import { useTranslation } from "react-i18next";
-import MaterialIcon from "../../../assets/Materiais.svg?react";
-import config from "../../../utils/config";
+import MaterialIcon from "../../../../assets/Materiais.svg?react";
+import config from "../../../../utils/config";
 import { useEffect } from "react";
 import { Collapse, Tabs } from "antd";
+import "./objection.css";
 
 export default function CourseObjection({ data }) {
   const { t } = useTranslation();
@@ -11,23 +12,18 @@ export default function CourseObjection({ data }) {
     console.log(data);
   }, []);
 
-  function downloadFile(item) {
-    window.open(`${config.server_ip}/media/${item.file}`, "_blank");
-  }
 
   return (
     <div className="mb-10">
       {data.objection && Object.keys(data.objection).length > 0 ? (
         <div className="flex flex-col">
           {data.objection.text && (
-            <div key="objection-text">
+            <div key="objection-text" className="prose-content">
               <div dangerouslySetInnerHTML={{ __html: data.objection.text }} />
             </div>
           )}
-          {data.objection.tabs.length === 1 ? (
-            <div></div>
-          ) : (
-            <div className="w-full mt-4" onClick={() => downloadFile(m)}>
+          {data.objection.tabs && data.objection.tabs.length > 0 && (
+            <div className="w-full mt-4">
               <Tabs
                 type="card"
                 size="large"
@@ -39,7 +35,7 @@ export default function CourseObjection({ data }) {
                       items={t.items.map((_i, _ind) => ({
                         key: `${t.label}-${_ind}`,
                         label: _i.title,
-                        children: <div dangerouslySetInnerHTML={{ __html: _i.text }} />,
+                        children: <div className="prose-content" dangerouslySetInnerHTML={{ __html: _i.text }} />,
                       }))}
                     />
                   ),

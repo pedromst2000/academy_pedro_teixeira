@@ -62,9 +62,11 @@ const ImageCarousel = {
       <Section maxWidth={maxWidth} justifyContent={justifyContent} alignItems={alignItems}>
         <Swiper spaceBetween={10} navigation={true} modules={[FreeMode, Navigation]} className="mySwiper2">
           {images.map((item, i) => (
-            <SwiperSlide>
-              <img alt={item.alt} src={`${config.server_ip}/media/${item.image.url}`}></img>
-            </SwiperSlide>
+            item.image?.url && (
+              <SwiperSlide key={i}>
+                <img alt={item.alt} src={`${config.server_ip}/media/${item.image.url}`}></img>
+              </SwiperSlide>
+            )
           ))}
         </Swiper>
       </Section>

@@ -24,6 +24,7 @@ export default function Course() {
 	const { user, selectedLanguage } = useContext(Context);
 	const [isLoading, setIsLoading] = useState(true);
 	const [data, setData] = useState([]);
+	const [allCourses, setAllCourses] = useState([]);
 	const [products, setProducts] = useState([]);
 	const [tableData, setTableData] = useState([]);
 	const [selectedData, setSelectedData] = useState({});
@@ -42,18 +43,23 @@ export default function Course() {
 
 	function getData() {
 		setIsLoading(true);
+		// Buscar todos os cursos (incluindo deletados) para a tabela admin
 		axios
-			.get(endpoints.course.readByLang, {
-				params: { id_lang: selectedLanguage.id },
-			})
+			.get(endpoints.course.read)
 			.then((res) => {
-				setData(res.data.courses);
+				// Filtrar apenas os cursos do idioma selecionado (incluindo deletados)
+				const languageFilteredCourses = res.data.courses.filter(
+					(course) => course.id_lang === selectedLanguage.id
+				);
+				setData(languageFilteredCourses);
 				setProducts(res.data.products);
-				prepareData(res.data.courses);
-				setIsLoading(false);
+				prepareData(languageFilteredCourses);
+				setAllCourses(res.data.courses); // Manter todos os cursos para validação
 			})
 			.catch((err) => {
 				console.log(err);
+			})
+			.finally(() => {
 				setIsLoading(false);
 			});
 	}
@@ -145,14 +151,41 @@ export default function Course() {
 		setIsOpenDelete(false);
 	}
 
+	const validateInternalName = async (_, value, excludeId = null, languageId = null) => {
+		if (!value || (!data && !allCourses)) {
+			return Promise.resolve();
+		}
+
+		// Usar idioma especificado ou padrão para o idioma atualmente selecionado
+		const targetLanguageId = languageId || selectedLanguage.id;
+		
+		// Filtrar cursos por idioma alvo
+		const coursesToCheck = allCourses.length > 0 ? allCourses : data;
+		const coursesByLanguage = coursesToCheck.filter(course => course.id_lang === targetLanguageId);
+
+		const courseExists = coursesByLanguage.some((course) => {
+			if (!course.internal_name) return false;
+			// Excluir o curso atual sendo editado da verificação de duplicação
+			if (excludeId && course.id === excludeId) return false;
+			return course.internal_name.toLowerCase().trim() === value.toLowerCase().trim();
+		});
+
+		if (courseExists) {
+			return Promise.reject(new Error(t("A course with this internal name already exists")));
+		}
+
+		return Promise.resolve();
+	};
+
 	return (
 		<div className="p-2">
-			<Create open={isOpenCreate} close={closeAction} products={products} />
+			<Create open={isOpenCreate} close={closeAction} products={products} courses={data} validateInternalName={validateInternalName} />
 			<Update
 				data={selectedData}
 				open={isOpenUpdate}
 				close={closeAction}
 				products={products}
+				validateInternalName={validateInternalName}
 			/>
 			<Delete
 				data={selectedData}
@@ -165,6 +198,7 @@ export default function Course() {
 				open={isOpenDuplicate}
 				close={closeAction}
 				products={products}
+				validateInternalName={validateInternalName}
 			/>
 			<div className="flex justify-between items-center mb-4">
 				<div>
@@ -174,6 +208,7 @@ export default function Course() {
 					<Button
 						size="large"
 						onClick={getData}
+						loading={isLoading}
 						icon={<RxReload />}
 						className="mr-2"
 					/>
@@ -185,6 +220,7 @@ export default function Course() {
 			<Table
 				dataSource={tableData}
 				loading={isLoading}
+				pagination={{ pageSize: 10 }}
 				columns={[
 					{
 						title: t("Name"),
