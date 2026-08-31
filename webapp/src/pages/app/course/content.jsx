@@ -104,7 +104,7 @@ export default function CourseContent({ modules, progress, data }) {
 				className="collapse-course"
 				size="large"
 				bordered={false}
-				items={modules?.map((item) => ({
+				items={modules?.sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((item) => ({
 					key: item.id,
 					label: (
 						<div className="flex flex-col">

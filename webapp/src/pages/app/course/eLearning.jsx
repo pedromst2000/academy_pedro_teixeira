@@ -147,11 +147,11 @@ const Learning = () => {
 					let auxAllItems = [];
 
 					if (res.data.modules.length > 0) {
-						let auxModules = res.data.modules;
+						let auxModules = res.data.modules.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 						let newModules = [];
 						for (let i = 0; i < auxModules.length; i++) {
 							auxModules[i].items = auxModules[i].items
-								? JSON.parse(auxModules[i].items)
+								? JSON.parse(auxModules[i].items).sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
 								: null;
 							if (auxModules[i].items) {
 								for (let y = 0; y < auxModules[i].items.length; y++) {
