@@ -19,6 +19,7 @@ export default function Translations({ data, defaultLanguage, open, close }) {
     if (open) {
       const aux = Object.assign([], data);
       if (!aux.translation) {
+        // Se não houver tradução, usar como base as chaves do idioma padrão
         const newTranlations = [];
         if (defaultLanguage.translation) {
           const defaultTrans = JSON.parse(defaultLanguage.translation);
@@ -40,7 +41,17 @@ export default function Translations({ data, defaultLanguage, open, close }) {
 
   async function submit(values) {
     try {
-      await update({ data: { id: data.id, country: data.country, translation: JSON.stringify(values.translations) }, table: "language" });
+      // Análise do campo país para array caso seja uma string JSON
+      const countryData = typeof data.country === 'string' ? JSON.parse(data.country) : data.country;
+      
+      await update({ 
+        data: { 
+          id: data.id, 
+          country: countryData,  // Enviar como array - o backend converterá para string JSON
+          translation: JSON.stringify(values.translations) 
+        }, 
+        table: "language" 
+      });
       setIsButtonLoading(false);
       close(true);
       form.resetFields();
