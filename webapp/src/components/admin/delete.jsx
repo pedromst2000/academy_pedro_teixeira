@@ -5,11 +5,11 @@ import endpoints from "../../utils/endpoints";
 import { Context } from "../../utils/context";
 import { useTranslation } from "react-i18next";
 
-export default function Delete({ open, close, data, table }) {
+export default function Delete({ open, close, data, table, onDeleteSuccess }) {
   const { messageApi, createLog, user, selectedLanguage } = useContext(Context);
   const { t } = useTranslation();
   const [isButtonLoading, setIsButtonLoading] = useState(false);
-  const [tablesName] = useState({ account: t("Account"), course: t("Course"), project: t("Project"), test: t("Test"), question: t("Question"), answer: t("Answer") });
+  const [tablesName] = useState({ account: t("Account"), course: t("Course"), project: t("Project"), test: t("Test"), question: t("Question"), answer: t("Answer"), media: t("Media") });
 
   function onClose() {
     close();
@@ -29,7 +29,13 @@ export default function Delete({ open, close, data, table }) {
         id_lang: selectedLanguage.id,
       });
       close(true);
-      messageApi.success(`${tablesName[table]} foi apagado com sucesso, é considerado como inativo.`);
+      
+      // Utilizar callback personalizado se fornecido, caso contrário mostrar mensagem padrão
+      if (onDeleteSuccess) {
+        onDeleteSuccess(data);
+      } else {
+        messageApi.success(`${tablesName[table]} foi apagado com sucesso, é considerado como inativo.`);
+      }
       setIsButtonLoading(false);
     } catch (err) {
       console.log(err);
