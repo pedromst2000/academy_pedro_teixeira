@@ -92,7 +92,7 @@ export default function Settings({ course }) {
         if (res.data.length > 0) {
           setCertificates(
             res.data
-              .filter((c) => c.id_lang === course.id_lang)
+              .filter((c) => c.is_deleted === 0 && c.id_lang === course.id_lang)
               .map((c) => ({ value: c.id, label: c.name })),
           );
         }
