@@ -58,7 +58,7 @@ function ModuleDropArea({ id, children, style }) {
 }
 
 /* -------------------- Tópico/Teste ordenável (com botão Editar + setas ↑↓) -------------------- */
-function SortableTopic({ item, onDelete, onCommitLabel, isDeleting, canMoveUp, canMoveDown, onMoveUp, onMoveDown, navigate, course, activeId, overId, forbiddenDropId }) {
+function SortableTopic({ item, onDelete, onCommitLabel, isDeleting, canMoveUp, canMoveDown, onMoveUp, onMoveDown, navigate, course, activeId, overId }) {
   const { setNodeRef, attributes, listeners } = useSortable({ id: item.id });
 
   const [editing, setEditing] = useState(false);
@@ -79,19 +79,18 @@ function SortableTopic({ item, onDelete, onCommitLabel, isDeleting, canMoveUp, c
 
   const isBeingDragged = activeId === item.id;
   const isDropTarget = overId === item.id;
-  const isForbiddenDropTarget = forbiddenDropId === item.id;
 
   return (
     <RemoveAnim isRemoving={isDeleting}>
       <Card
         ref={setNodeRef}
-        className={`mb-2! transition-colors ${ isForbiddenDropTarget ? "border-red-500 border-2" : "" }`}
+        className="mb-2!"
         style={{
           transform: "none",
           transition: "background-color 150ms ease, border-color 150ms ease",
           opacity: 1,
-          backgroundColor: isForbiddenDropTarget ? "rgba(220, 38, 38, 0.08)" : (activeId && isDropTarget ? "rgba(13, 110, 253, 0.15)" : "transparent"),
-          cursor: isForbiddenDropTarget ? "not-allowed" : "default",
+          backgroundColor: activeId && isDropTarget ? "rgba(13, 110, 253, 0.15)" : "transparent",
+          cursor: "default",
         }}
         bodyStyle={{ padding: 8 }}
       >
@@ -749,7 +748,7 @@ export default function Constructor({ course }) {
     // Atualiza o estado do módulo alvo (overId) apenas se for um módulo ou um item dentro de um módulo
     if (isModuleId(e.active.id) && isModuleId(over)) {
       setOverId(over);
-    } else if ((isTopicId(e.active.id) || isTestId(e.active.id)) && (isTopicId(over) || isTestId(over))) {
+    } else if ((isTopicId(e.active.id) || isTestId(e.active.id)) && (isTopicId(over) || isTestId(over) || isModuleId(over))) {
       setOverId(over);
     } else {
       setOverId(null);
@@ -780,15 +779,21 @@ export default function Constructor({ course }) {
     else if (isTopicId(e.active.id) || isTestId(e.active.id)) {
       setModDropIndicator(null);
       
-      // Apenas permitir colisão com outros tópicos/testes
-      if (!isTopicId(over) && !isTestId(over)) {
+      // Permitir colisão com tópicos/testes ou com o próprio módulo para drop em área vazia
+      if (!isTopicId(over) && !isTestId(over) && !isModuleId(over)) {
         setItemDropIndicator(null);
         setForbiddenDropId(null);
         return;
       }
       
       const fromModId = findModuleByTopic(e.active.id)?.id;
-      const toModId = findModuleByTopic(over)?.id;
+      let toModId = null;
+      
+      if (isTopicId(over) || isTestId(over)) {
+        toModId = findModuleByTopic(over)?.id;
+      } else if (isModuleId(over)) {
+        toModId = over; // Drop na área vazia do módulo
+      }
       
       if (!fromModId || !toModId) {
         setItemDropIndicator(null);
@@ -796,14 +801,7 @@ export default function Constructor({ course }) {
         return;
       }
       
-      // Proibir arrastar entre módulos diferentes - permitir apenas drops dentro do mesmo módulo
-      if (fromModId !== toModId) {
-        setItemDropIndicator(null);
-        setForbiddenDropId(e.over?.id); // Feedback visual de proibição de drop
-        return;
-      }
-      
-      setForbiddenDropId(null); // Resetar feedback visual de proibição de drop
+      setForbiddenDropId(null); // Sem proibição de drop entre módulos
       
       const toMod = modules.find((m) => m.id === toModId);
       if (!toMod || !toMod.items || !Array.isArray(toMod.items)) {
@@ -820,10 +818,6 @@ export default function Constructor({ course }) {
         let targetItemId = null;
         if (isTopicId(over) || isTestId(over)) {
           targetItemId = over;
-        } else if (isModuleId(over)) {
-          // Se o alvo for um módulo, definir o targetItemId como null (indicando que o item será adicionado no final do módulo)
-          setItemDropIndicator(null);
-          return;
         }
         
         setItemDropIndicator({
@@ -885,26 +879,64 @@ export default function Constructor({ course }) {
       return;
     }
 
-    // Mover/Reordenar TÓPICOS/TESTES via drag
+    // Mover/Reordenar TÓPICOS/TESTES via drag (agora com suporte a cross-module drag)
     if (isTopicId(a) || isTestId(a)) {
       const fromModId = findModuleByTopic(a)?.id;
-      const toModId = (isTopicId(o) || isTestId(o)) ? findModuleByTopic(o)?.id : (isModuleId(o) ? o : null);
+      let toModId = null;
+      
+      // Determinar o módulo de destino
+      if (isTopicId(o) || isTestId(o)) {
+        toModId = findModuleByTopic(o)?.id;
+      } else if (isModuleId(o)) {
+        toModId = o; // Drop na área vazia do módulo
+      }
 
       if (!fromModId || !toModId) return;
-
-      // Proibir arrastar entre módulos diferentes - permitir apenas drops dentro do mesmo módulo
-      if (fromModId !== toModId) return;
 
       const fromMod = modules.find((m) => m.id === fromModId);
       const toMod = modules.find((m) => m.id === toModId);
       if (!fromMod || !toMod || !fromMod.items || !Array.isArray(fromMod.items) || !toMod.items || !Array.isArray(toMod.items)) return;
 
       const fromIndex = fromMod.items.findIndex((i) => i.id === a);
-      let toIndex = (isTopicId(o) || isTestId(o)) ? toMod.items.findIndex((i) => i.id === o) : toMod.items.length;
-
-      if (fromIndex === toIndex) return;
+      if (fromIndex === -1) return;
+      
+      const movingItem = fromMod.items[fromIndex];
+      
+      // Se é o mesmo módulo, apenas reordenar
+      if (fromModId === toModId) {
+        let toIndex = (isTopicId(o) || isTestId(o)) ? toMod.items.findIndex((i) => i.id === o) : toMod.items.length;
+        if (fromIndex === toIndex) return;
+        
+        pushHistory(modules);
+        setModules((prev) => prev.map((m) => (m.id === fromMod.id ? { ...m, items: arrayMove(m.items, fromIndex, toIndex) } : m)));
+        return;
+      }
+      
+      // Se é um módulo diferente, mover o item
       pushHistory(modules);
-      setModules((prev) => prev.map((m) => (m.id === fromMod.id ? { ...m, items: arrayMove(m.items, fromIndex, toIndex) } : m)));
+      setModules((prev) =>
+        prev.map((m) => {
+          if (m.id === fromModId) {
+            // Remove o item do módulo de origem
+            return { ...m, items: m.items.filter((i) => i.id !== a) };
+          }
+          if (m.id === toModId) {
+            // Adiciona o item no módulo de destino
+            let toIndex = toMod.items.length;
+            if (isTopicId(o) || isTestId(o)) {
+              toIndex = m.items.findIndex((i) => i.id === o);
+              // Se o item de destino está acima, insere acima; caso contrário, abaixo
+              if (itemDropIndicator && itemDropIndicator.side === "bottom") {
+                toIndex += 1;
+              }
+            }
+            const newItems = [...m.items];
+            newItems.splice(toIndex, 0, movingItem);
+            return { ...m, items: newItems };
+          }
+          return m;
+        }),
+      );
       return;
     }
   }
@@ -967,7 +999,7 @@ export default function Constructor({ course }) {
                     overId={overId}
                   >
                     {/* ZONA DROPPABLE DO MÓDULO (aceita drop em área vazia) */}
-                    <ModuleDropArea id={mod.id} style={forbiddenDropId && findModuleByTopic(forbiddenDropId)?.id === mod.id ? { cursor: "not-allowed" } : {}}>
+                    <ModuleDropArea id={mod.id}>
                       {/* TÓPICOS/TESTES: lista VERTICAL */}
                       <SortableContext items={(mod.items && Array.isArray(mod.items)) ? mod.items.map((i) => i?.id) : []}>
                         {!mod.items || mod.items.length === 0 ? (
@@ -995,7 +1027,6 @@ export default function Constructor({ course }) {
                                   course={course}
                                   activeId={activeId}
                                   overId={overId}
-                                  forbiddenDropId={forbiddenDropId}
                                 />
                                 
                                 {/* Indicador de inserção ABAIXO do item */}
