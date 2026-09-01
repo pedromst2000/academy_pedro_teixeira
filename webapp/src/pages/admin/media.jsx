@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { CopyOutlined, DeleteOutlined, FilePdfOutlined, InboxOutlined } from "@ant-design/icons";
-import { message, Upload, Row, Col, Button, Card, Pagination, Select, Spin } from "antd";
+import { CopyOutlined, DeleteOutlined, FilePdfOutlined, FilePptOutlined, InboxOutlined } from "@ant-design/icons";
+import { Upload, Card, Pagination } from "antd";
 import axios from "axios";
 
 import config from "../../utils/config";
@@ -16,7 +15,7 @@ const { Dragger } = Upload;
 const { Meta } = Card;
 
 function Media() {
-  const { user, t } = useContext(Context);
+  const { user, t, messageApi } = useContext(Context);
   const [selectedMedia, setSelectedMedia] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpenDelete, setIsOpenDelete] = useState(false);
@@ -42,6 +41,10 @@ function Media() {
       })
       .catch((err) => {
         console.log(err);
+        messageApi.open({
+          type: "error",
+          content: t("Failed to load media"),
+        });
       });
   }
 
@@ -56,14 +59,20 @@ function Media() {
 
       if (status === "done") {
         setIsUploading(false);
-        message.success(`${info.file.name} file uploaded successfully.`);
+        messageApi.open({
+          type: "success",
+          content: `${info.file.name} file uploaded successfully.`,
+        });
       } else if (status === "error") {
-        message.error(`${info.file.name} file upload failed.`);
+        messageApi.open({
+          type: "error",
+          content: `${info.file.name} file upload failed.`,
+        });
         setIsUploading(false);
       }
 
       if (info.file.name === info.fileList[info.fileList.length - 1].name) {
-        handleGetMedia();
+        getData();
       }
     },
     beforeUpload: (file) => {
@@ -104,7 +113,10 @@ function Media() {
 
   function handleCopyClipboard(link) {
     navigator.clipboard.writeText(`${config.server_ip}/media/${link}`);
-    message.success({ content: "Link da imagem copiada" });
+    messageApi.open({
+      type: "success",
+      content: t("Image link copied"),
+    });
   }
 
   function handleOpenDelete(item) {
@@ -112,9 +124,16 @@ function Media() {
     setIsOpenDelete(true);
   }
 
+  function handleDeleteSuccess(deletedItem) {
+    messageApi.open({
+      type: "success",
+      content: t("Asset") + ` "${deletedItem?.name || deletedItem?.id}" ` + t("was removed successfully"),
+    });
+  }
+
   function handleCloseDelete() {
     setIsOpenDelete(false);
-    handleGetMedia();
+    getData();
   }
 
   function handleChangePage(e) {
@@ -132,7 +151,7 @@ function Media() {
 
   return (
     <div className="p-2">
-      <Delete table="media" open={isOpenDelete} close={handleCloseDelete} data={selectedMedia} />
+      <Delete table="media" open={isOpenDelete} close={handleCloseDelete} data={selectedMedia} onDeleteSuccess={handleDeleteSuccess} />
       <div className="flex justify-between items-center mb-4">
         <div>
           <p className="text-xl font-bold">{t("Multimedia")}</p>
@@ -143,8 +162,8 @@ function Media() {
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
-          <p className="ant-upload-text">Click or drag file to this area to upload</p>
-          <p className="ant-upload-hint">Support for a single or bulk upload. Strictly prohibited from uploading company data or other banned files.</p>
+          <p className="ant-upload-text">{t("Click or drag file to this area to upload")}</p>
+          <p className="ant-upload-hint">{t("Support for a single or bulk upload. Strictly prohibited from uploading company data or other banned files.")}</p>
         </Dragger>
       </div>
       <div className="grid grid-cols-8 gap-4 mt-6">
@@ -158,6 +177,10 @@ function Media() {
                     <div className="flex! justify-center items-center min-h-25">
                       <FilePdfOutlined className="text-[50px]" />
                     </div>
+                  ) : item.name.includes("pptx") ? (
+                    <div className="flex! justify-center items-center min-h-25">
+                      <FilePptOutlined className="text-[50px]" />
+                    </div>
                   ) : (
                     <div
                       className="flex! justify-center items-center min-h-25 w-full bg-contain bg-center bg-no-repeat"
@@ -165,7 +188,7 @@ function Media() {
                     ></div>
                   )
                 }
-                actions={[<CopyOutlined key="edit" onClick={() => handleCopyClipboard(item.name)} />, <DeleteOutlined key="delete" onClick={() => handleOpenDelete(item)} />]}
+                actions={[<CopyOutlined key="copy" onClick={() => handleCopyClipboard(item.name)} />, <DeleteOutlined key="delete" onClick={() => handleOpenDelete(item)} />]}
               >
                 <Meta title={<p className="font-normal! text-[12px]">{item.name}</p>} />
               </Card>
