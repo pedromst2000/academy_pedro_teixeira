@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 export default function Certificate() {
-  const { user } = useContext(Context);
+  const { user, messageApi } = useContext(Context);
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState([]);
   const [tableData, setTableData] = useState([]);
@@ -116,14 +116,40 @@ export default function Certificate() {
     setIsOpenDelete(false);
   }
 
+  function handleDeleteSuccess(deletedItem) {
+    messageApi.open({
+      type: "success",
+      content: t("Certificate") + ` "${deletedItem?.name || deletedItem?.id}" ` + t("was removed successfully"),
+    });
+  }
+
+  const validateCertificateName = async (_, value, excludeId = null) => {
+    if (!value || !data) {
+      return Promise.resolve();
+    }
+
+    const certificateExists = data.some((certificate) => {
+      if (!certificate.name) return false;
+      // Verifica se o certificado atual deve ser excluído da verificação de duplicidade
+      if (excludeId && certificate.id === excludeId) return false;
+      return certificate.name.toLowerCase().trim() === value.toLowerCase().trim();
+    });
+
+    if (certificateExists) {
+      return Promise.reject(new Error(t("A certificate with this name already exists")));
+    }
+
+    return Promise.resolve();
+  };
+
   return (
     <div className="p-2">
-      <Create open={isOpenCreate} close={closeAction} table="course_certificate" />
-      <Delete data={selectedData} open={isOpenDelete} close={closeAction} table="course" />
+      <Create open={isOpenCreate} close={closeAction} validateCertificateName={validateCertificateName} />
+      <Delete data={selectedData} open={isOpenDelete} close={closeAction} table="course_certificate" onDeleteSuccess={handleDeleteSuccess} />
       <Logs table={"course"} id_client={selectedData.id} open={isOpenLogs} close={() => setIsOpenLogs(false)} />
       <div className="flex justify-between items-center mb-4">
         <div>
-          <p className="text-xl font-bold">{t("Courses")}</p>
+          <p className="text-xl font-bold">{t("Certificates")}</p>
         </div>
         <div>
           <Button size="large" onClick={getData} icon={<RxReload />} className="mr-2" />
@@ -135,6 +161,7 @@ export default function Certificate() {
       <Table
         dataSource={tableData}
         loading={isLoading}
+        pagination={{ pageSize: 10 }}
         columns={[
           {
             title: "Nome",
