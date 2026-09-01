@@ -4,19 +4,16 @@ import countries from "../../../utils/countries.json";
 
 import { Context } from "../../../utils/context";
 import Media from "../media/media";
-import { useTranslation } from "react-i18next";
 import i18n from "../../../utils/i18n";
 import { useNavigate } from "react-router-dom";
 
-export default function Update({ data, open, close, submit }) {
-  const { create, languages } = useContext(Context);
+export default function Create({ data, open, close, validateCertificateName }) {
+  const { create, languages, t } = useContext(Context);
   const [isButtonLoading, setIsButtonLoading] = useState(false);
   const [mediaKey, setMediaKey] = useState(null);
   const [isOpenMedia, setIsOpenMedia] = useState(false);
 
   const [form] = Form.useForm();
-
-  const { t } = useTranslation();
 
   const navigate = useNavigate();
 
@@ -32,7 +29,7 @@ export default function Update({ data, open, close, submit }) {
     close();
   }
 
-  async function submit(values) {
+  async function onSubmit(values) {
     setIsButtonLoading(true);
     values.id_lang = languages.filter((l) => l.code === i18n.language)[0].id;
     try {
@@ -40,7 +37,7 @@ export default function Update({ data, open, close, submit }) {
       setIsButtonLoading(false);
       close(true);
       form.resetFields();
-      navigate(`/admin/certificate/${inserted.insertId}`);
+      navigate(`/admin/certificate/${inserted.data.insertId}`);
     } catch (err) {
       console.log(err);
       setIsButtonLoading(false);
@@ -51,11 +48,11 @@ export default function Update({ data, open, close, submit }) {
     <Modal
       open={open}
       size={800}
-      onClose={onClose}
+      onCancel={onClose}
       maskClosable={false}
       title={t("Create certificate")}
       footer={[
-        <Button size="large" loading={isButtonLoading} onClick={form.submit}>
+        <Button size="large" loading={isButtonLoading} onClick={onClose}>
           {t("Cancel")}
         </Button>,
         <Button size="large" type="primary" loading={isButtonLoading} onClick={form.submit}>
@@ -65,7 +62,7 @@ export default function Update({ data, open, close, submit }) {
     >
       <Form
         form={form}
-        onFinish={submit}
+        onFinish={onSubmit}
         layout="vertical"
         validateMessages={{
           required: "Este campo é obrigatório!",
@@ -74,7 +71,14 @@ export default function Update({ data, open, close, submit }) {
         <Form.Item name="id" hidden>
           <Input />
         </Form.Item>
-        <Form.Item name="name" label="Nome" rules={[{ required: true }]}>
+        <Form.Item 
+          name="name" 
+          label={t("Name")} 
+          rules={[
+            { required: true },
+            { validator: validateCertificateName, validateTrigger: ["onChange", "onBlur"] }
+          ]}
+        >
           <Input size="large" />
         </Form.Item>
       </Form>

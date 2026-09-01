@@ -42,6 +42,7 @@ const ContextProvider = ({ children }) => {
 	const [tablesName] = useState({
 		user: t("User"),
 		course: t("Course"),
+		course_certificate: t("Certificate"),
 		test: t("Test"),
 		language: t("Language"),
 		document: t("Document"),
